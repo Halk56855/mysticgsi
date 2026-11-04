@@ -1,0 +1,31 @@
+name: Build Non-Android Linux OS (Halium)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-linux-os:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Build Environment
+        run: |
+          sudo apt update
+          sudo apt install -y repo git bc bison build-essential curl flex g++-multilib gcc-multilib gnupg gperf libxml2-utils zip zlib1g-dev
+
+      - name: Initialize Repo for Halium
+        run: |
+          mkdir halium && cd halium
+          repo init -u https://github.com/Halium/android -b halium-11.0 --depth=1
+          repo sync -c -j$(nproc)
+
+      - name: Build System Image
+        run: |
+          cd halium
+          source build/envsetup.sh
+          # يتم تحديد شجرة الجهاز (Device Tree) الخاصة بـ Galaxy A04 هنا
+          lunch halium_a04-userdebug || true
+          mka systemimage
