@@ -38,7 +38,7 @@ jobs:
           source .venv/bin/activate
           pip install --upgrade pip
           pip install -r requirements.txt
-          sudo apt-get update && sudo apt-get install -y aria2 p7zip-full
+          sudo apt-get update && sudo apt-get install -y aria2
 
       - name: Download Stock Firmware
         run: |
@@ -51,11 +51,11 @@ jobs:
           source .venv/bin/activate
           python3 cli.py build a04_gsi stock_firmware.zip --type auto --compress
 
-      - name: Clean and Compress Only System Image
+      - name: Compress System Image with GZ
         run: |
           cd workspace/out
-          rm -f *.7z *.zip
-          7z a -t7z -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on final_gsi_ultra.7z *.img
+          sudo apt-get install -y pigz
+          pigz -9 -k *.img
           ls -lh
 
       - name: Upload Built Image
