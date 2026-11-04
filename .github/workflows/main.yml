@@ -38,7 +38,6 @@ jobs:
           source .venv/bin/activate
           pip install --upgrade pip
           pip install -r requirements.txt
-          # تثبيت أدوات التحميل والضغط القصوى
           sudo apt-get update && sudo apt-get install -y aria2 p7zip-full
 
       - name: Download Stock Firmware
@@ -52,11 +51,15 @@ jobs:
           source .venv/bin/activate
           python3 cli.py build a04_gsi stock_firmware.zip --type auto --compress
 
-      - name: Compress Output with Maximum Strength (7z LZMA2)
+      - name: Force Maximum Compression on Output
         run: |
           cd workspace/out
-          # ضغط ملفات النظام الناتجة بأقصى درجة ضغط (-mx=9) لتوفير المساحة والحصول على أصغر حجم ممكن
-          7z a -t7z -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on gsi_ultra_compressed.7z *.img
+          echo "=== الملفات المنتجة قبل الضغط الإجباري ==="
+          ls -lh
+          # ضغط كافة الملفات الناتجة بأقصى خوارزمية ضغط 7z
+          7z a -t7z -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on ultimate_gsi_release.7z * || true
+          echo "=== الملفات بعد الضغط ==="
+          ls -lh
 
       - name: Upload Built Image
         uses: actions/upload-artifact@v4
