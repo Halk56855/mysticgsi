@@ -49,11 +49,11 @@ jobs:
         run: |
           cd workspace
           source .venv/bin/activate
-          # تم تمرير الوسيطين (اسم المخرج a04_gsi ومسار الفيرموير stock_firmware.zip) لتجنب خطأ cli.py
+          # تمرير اسم المخرج والملف بنجاح لتجنب أخطاء cli.py
           python3 cli.py build a04_gsi stock_firmware.zip --type auto --compress
 
       - name: Upload Built Image
         uses: actions/upload-artifact@v4
         with:
           name: Proprietary-GSI-Output
-          path: workspace/output/*
+          path: workspace/out/**/*
