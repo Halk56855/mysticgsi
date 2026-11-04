@@ -1,0 +1,58 @@
+name: Build Proprietary Stock GSI
+
+on:
+  workflow_dispatch:
+    inputs:
+      rom_url:
+        description: 'رابط مباشر للفيرموير المغلق المصدر (مثل One UI أو MIUI Firmware Zip)'
+        required: true
+        default: ''
+
+jobs:
+  build-proprietary-gsi:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Free Disk Space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: false
+          dotnet: false
+          haskell: false
+          large-storage: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install MysticGSI & Dependencies
+        run: |
+          git clone https://github.com/Halk56855/mysticgsi.git workspace
+          cd workspace
+          python3 -m venv .venv
+          source .venv/bin/activate
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Download Stock Firmware
+        run: |
+          cd workspace
+          aria2c -x 16 -s 16 -o stock_firmware.zip "${{ github.event.inputs.rom_url }}"
+
+      - name: Build Proprietary GSI
+        run: |
+          cd workspace
+          source .venv/bin/activate
+          # تحويل الفيرموير المغلق المصدر إلى GSI متوافق
+          python3 cli.py build stock_firmware.zip --type auto --compress
+
+      - name: Upload Built Image
+        uses: actions/upload-artifact@v4
+        with:
+          name: Proprietary-GSI-Output
+          path: workspace/output/*.img
