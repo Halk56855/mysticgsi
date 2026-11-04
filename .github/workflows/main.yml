@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       rom_url:
-        description: 'رابط مباشر للفيرموير المغلق المصدر (مثل One UI أو MIUI Firmware Zip)'
+        description: 'رابط مباشر للفيرموير (مثلاً رابط سامسونج بصيغة .zip)'
         required: true
         default: ''
 
@@ -38,6 +38,7 @@ jobs:
           source .venv/bin/activate
           pip install --upgrade pip
           pip install -r requirements.txt
+          sudo apt-get update && sudo apt-get install -y aria2
 
       - name: Download Stock Firmware
         run: |
@@ -48,11 +49,11 @@ jobs:
         run: |
           cd workspace
           source .venv/bin/activate
-          # تحويل الفيرموير المغلق المصدر إلى GSI متوافق
-          python3 cli.py build stock_firmware.zip --type auto --compress
+          # تم تمرير الوسيطين (اسم المخرج a04_gsi ومسار الفيرموير stock_firmware.zip) لتجنب خطأ cli.py
+          python3 cli.py build a04_gsi stock_firmware.zip --type auto --compress
 
       - name: Upload Built Image
         uses: actions/upload-artifact@v4
         with:
           name: Proprietary-GSI-Output
-          path: workspace/output/*.img
+          path: workspace/output/*
