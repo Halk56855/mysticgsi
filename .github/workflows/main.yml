@@ -51,11 +51,12 @@ jobs:
           source .venv/bin/activate
           python3 cli.py build a04_gsi stock_firmware.zip --type auto --compress
 
-      - name: Compress System Image with GZ (Recursive)
+      - name: Compress System Image with GZ (Excluding Uncompressed)
         run: |
           cd workspace
           sudo apt-get install -y pigz
-          find out -name "system.img" -exec pigz -9 -k {} \;
+          find out -name "system.img" -exec pigz -9 {} \;
+          find out -name "*.img" -delete || true
           find out -name "*.img.gz" -ls
 
       - name: Upload Built Image
