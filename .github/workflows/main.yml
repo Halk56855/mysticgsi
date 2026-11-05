@@ -38,13 +38,21 @@ jobs:
           source .venv/bin/activate
           pip install --upgrade pip
           pip install -r requirements.txt
-          # تم إعادة إضافة p7zip-full و pigz هنا لضمان عدم فشل الاستخراج والضغط
-          sudo apt-get update && sudo apt-get install -y aria2 p7zip-full pigz
+          sudo apt-get update && sudo apt-get install -y aria2 p7zip-full pigz file
 
       - name: Download Stock Firmware
         run: |
           cd workspace
           aria2c -x 16 -s 16 -o stock_firmware.zip "${{ github.event.inputs.rom_url }}"
+          echo "=== فحص حجم ونوع الملف المحمل ==="
+          ls -lh stock_firmware.zip
+          file stock_firmware.zip
+          # إذا كان حجم الملف صغيراً جداً (أقل من 1 غيغابايت)، فهذا يعني أن الرابط غير مباشر أو خاطئ
+          SIZE_MB=$(du -m stock_firmware.zip | cut -f1)
+          if [ "$SIZE_MB" -lt 500 ]; then
+            echo "خطأ: الملف المحمل صغير جداً ($SIZE_MB MB)، يبدو أنه صفحة خطأ أو رابط غير مباشر وليس فيرموير حقيقي!"
+            exit 1
+          fi
 
       - name: Build Proprietary GSI
         run: |
