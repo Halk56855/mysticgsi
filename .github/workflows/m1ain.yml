@@ -37,11 +37,12 @@ jobs:
           mkdir halium && cd halium
           repo init -u https://github.com/Halium/android -b halium-11.0 --depth=1
           
+          # إنشاء مجلد local_manifests وربط مستودعات Galaxy A04 المتوافقة مع أندرويد 11
           mkdir -p .repo/local_manifests
           cat << 'EOF' > .repo/local_manifests/a04.xml
           <?xml version="1.0" encoding="UTF-8"?>
           <manifest>
-            <project name="DaniHasReal/android_device_samsung_a04" path="device/samsung/a04" remote="github" revision="lineage_22" />
+            <project name="Halk56855/android_device_samsung_a04-lineage" path="device/samsung/a04" remote="github" revision="main" />
             <project name="Halk56855/android_kernel_samsung_a045" path="kernel/samsung/a045" remote="github" revision="main" />
             <project name="DaniHasReal/android_vendor_samsung_a04" path="vendor/samsung/a04" remote="github" revision="main" />
             <project name="DaniHasReal/lineage-keys" path="lineage-keys" remote="github" revision="main" />
@@ -49,15 +50,6 @@ jobs:
           EOF
           
           repo sync -c -j$(nproc) --no-clone-bundle --optimized-fetch --prune
-
-      - name: Patch Device Tree for Halium 11 Compatibility
-        run: |
-          cd halium/device/samsung/a04
-          echo "Searching and disabling non_ab_device.mk in device tree..."
-          find . -name "*.mk" -type f -exec grep -l "non_ab_device.mk" {} + | while read file; do
-            sed -i 's|$(call inherit-product, build/make/target/product/non_ab_device.mk)|# non_ab_device removed for Halium 11|g' "$file"
-            echo "Patched: $file"
-          done
 
       - name: Build System Image
         run: |
