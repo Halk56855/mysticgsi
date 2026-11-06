@@ -53,9 +53,11 @@ jobs:
       - name: Patch Device Tree for Halium 11 Compatibility
         run: |
           cd halium/device/samsung/a04
-          # تعطيل استدعاء non_ab_device.mk غير المتوافق مع أندرويد 11
-          sed -i 's|$(call inherit-product, build/make/target/product/non_ab_device.mk)|# $(call inherit-product, build/make/target/product/non_ab_device.mk)|g' lineage_a04.mk || true
-          sed -i 's|$(call inherit-product, build/make/target/product/non_ab_device.mk)|# $(call inherit-product, build/make/target/product/non_ab_device.mk)|g' device.mk || true
+          echo "Searching and disabling non_ab_device.mk in device tree..."
+          find . -name "*.mk" -type f -exec grep -l "non_ab_device.mk" {} + | while read file; do
+            sed -i 's|$(call inherit-product, build/make/target/product/non_ab_device.mk)|# non_ab_device removed for Halium 11|g' "$file"
+            echo "Patched: $file"
+          done
 
       - name: Build System Image
         run: |
