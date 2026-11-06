@@ -37,7 +37,7 @@ jobs:
           mkdir halium && cd halium
           repo init -u https://github.com/Halium/android -b halium-11.0 --depth=1
           
-          # إنشاء مجلد local_manifests ودمج مستودعاتك الخاصة بـ A04
+          # إنشاء مجلد local_manifests ودمج مستودعاتك
           mkdir -p .repo/local_manifests
           cat << 'EOF' > .repo/local_manifests/a04.xml
           <?xml version="1.0" encoding="UTF-8"?>
@@ -55,5 +55,6 @@ jobs:
         run: |
           cd halium
           source build/envsetup.sh
-          lunch halium_a04-userdebug
+          # تم تعديل اسم المنتج ليطابق ملف lineage_a04.mk الموجود في شجرة الجهاز
+          lunch lineage_a04-userdebug
           mka systemimage
