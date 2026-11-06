@@ -37,7 +37,6 @@ jobs:
           mkdir halium && cd halium
           repo init -u https://github.com/Halium/android -b halium-11.0 --depth=1
           
-          # إنشاء مجلد local_manifests ودمج مستودعاتك
           mkdir -p .repo/local_manifests
           cat << 'EOF' > .repo/local_manifests/a04.xml
           <?xml version="1.0" encoding="UTF-8"?>
@@ -51,10 +50,16 @@ jobs:
           
           repo sync -c -j$(nproc) --no-clone-bundle --optimized-fetch --prune
 
+      - name: Patch Device Tree for Halium 11 Compatibility
+        run: |
+          cd halium/device/samsung/a04
+          # تعطيل استدعاء non_ab_device.mk غير المتوافق مع أندرويد 11
+          sed -i 's|$(call inherit-product, build/make/target/product/non_ab_device.mk)|# $(call inherit-product, build/make/target/product/non_ab_device.mk)|g' lineage_a04.mk || true
+          sed -i 's|$(call inherit-product, build/make/target/product/non_ab_device.mk)|# $(call inherit-product, build/make/target/product/non_ab_device.mk)|g' device.mk || true
+
       - name: Build System Image
         run: |
           cd halium
           source build/envsetup.sh
-          # تم تعديل اسم المنتج ليطابق ملف lineage_a04.mk الموجود في شجرة الجهاز
           lunch lineage_a04-userdebug
           mka systemimage
