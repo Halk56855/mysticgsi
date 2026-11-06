@@ -50,16 +50,14 @@ jobs:
           
           repo sync -c -j$(nproc) --no-clone-bundle --optimized-fetch --prune
 
-      - name: Fix BoardConfig API Level Mismatch
+      - name: Fix BoardConfig API Level Conflict
         run: |
           cd halium/device/samsung/a04
-          # البحث عن ملفات BoardConfig.mk وتعديل أو حذف شرط فحص الـ API
+          # حذف سطر تعريف PRODUCT_SHIPPING_API_LEVEL بالكامل من ملفات BoardConfig.mk لتجنب خطأ readonly
           find . -name "BoardConfig*.mk" -type f -exec grep -l "PRODUCT_SHIPPING_API_LEVEL" {} + | while read file; do
-            echo "Patching $file"
+            echo "Removing PRODUCT_SHIPPING_API_LEVEL from $file"
             sed -i '/PRODUCT_SHIPPING_API_LEVEL/d' "$file"
           done
-          # إضافة تجاوز للشرط مباشرة إذا لزم الأمر
-          echo "PRODUCT_SHIPPING_API_LEVEL := 30" >> BoardConfig.mk || true
 
       - name: Build System Image
         run: |
