@@ -50,14 +50,24 @@ jobs:
           
           repo sync -c -j$(nproc) --no-clone-bundle --optimized-fetch --prune
 
-      - name: Fix BoardConfig API Level Conflict
+      - name: Purge and Fix API Level Conflicts
         run: |
           cd halium/device/samsung/a04
-          # حذف سطر تعريف PRODUCT_SHIPPING_API_LEVEL بالكامل من ملفات BoardConfig.mk لتجنب خطأ readonly
-          find . -name "BoardConfig*.mk" -type f -exec grep -l "PRODUCT_SHIPPING_API_LEVEL" {} + | while read file; do
-            echo "Removing PRODUCT_SHIPPING_API_LEVEL from $file"
+          # مسح PRODUCT_SHIPPING_API_LEVEL من جميع ملفات الجهاز بالكامل لمنع التعارض
+          find . \( -name "*.mk" -o -name "*.prop" \) -type f -exec grep -l "PRODUCT_SHIPPING_API_LEVEL" {} + | while read file; do
+            echo "Cleaning PRODUCT_SHIPPING_API_LEVEL from $file"
             sed -i '/PRODUCT_SHIPPING_API_LEVEL/d' "$file"
           done
+          
+          # مسح BOARD_SYSTEMSDK_VERSIONS لو كانت تسبب مشاكل وتعريفها بقيمة متوافقة
+          find . -name "BoardConfig*.mk" -type f -exec grep -l "BOARD_SYSTEMSDK_VERSIONS" {} + | while read file; do
+            sed -i '/BOARD_SYSTEMSDK_VERSIONS/d' "$file"
+          done
+          
+          # إضافة إعدادات متوافقة تماماً مع أندرويد 11 في نهاية BoardConfig.mk
+          echo "" >> BoardConfig.mk
+          echo "# Fixes for Halium 11 API compatibility" >> BoardConfig.mk
+          echo "BOARD_SYSTEMSDK_VERSIONS := 30" >> BoardConfig.mk
 
       - name: Build System Image
         run: |
