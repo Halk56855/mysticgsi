@@ -62,13 +62,14 @@ jobs:
           echo "" >> BoardConfig.mk
           echo "BOARD_SYSTEMSDK_VERSIONS := 30" >> BoardConfig.mk
 
-      - name: Fix libvpx Host Variation Error
+      - name: Completely Fix or Remove libvpx Host Variations
         run: |
           cd halium/external/libvpx
-          # إصلاح خطأ التباين في مكتبة libvpx لكي تتوافق مع نظام البناء الحديث للمضيف
           if [ -f "Android.bp" ]; then
-            sed -i '/windows/,/}/d' Android.bp || true
-            sed -i '/linux_glibc/,/}/d' Android.bp || true
+            # إزالة استهداف المضيفين (windows و linux_glibc) تماماً من الملف لتجاوز خطأ Soong
+            sed -i '/target: {/,/}/d' Android.bp || true
+            sed -i '/windows/d' Android.bp || true
+            sed -i '/linux_glibc/d' Android.bp || true
           fi
 
       - name: Build System Image
