@@ -37,7 +37,6 @@ jobs:
           mkdir halium && cd halium
           repo init -u https://github.com/Halium/android -b halium-11.0 --depth=1
           
-          # إنشاء مجلد local_manifests وربط مستودعات Galaxy A04 المتوافقة مع أندرويد 11
           mkdir -p .repo/local_manifests
           cat << 'EOF' > .repo/local_manifests/a04.xml
           <?xml version="1.0" encoding="UTF-8"?>
@@ -50,6 +49,17 @@ jobs:
           EOF
           
           repo sync -c -j$(nproc) --no-clone-bundle --optimized-fetch --prune
+
+      - name: Fix BoardConfig API Level Mismatch
+        run: |
+          cd halium/device/samsung/a04
+          # البحث عن ملفات BoardConfig.mk وتعديل أو حذف شرط فحص الـ API
+          find . -name "BoardConfig*.mk" -type f -exec grep -l "PRODUCT_SHIPPING_API_LEVEL" {} + | while read file; do
+            echo "Patching $file"
+            sed -i '/PRODUCT_SHIPPING_API_LEVEL/d' "$file"
+          done
+          # إضافة تجاوز للشرط مباشرة إذا لزم الأمر
+          echo "PRODUCT_SHIPPING_API_LEVEL := 30" >> BoardConfig.mk || true
 
       - name: Build System Image
         run: |
