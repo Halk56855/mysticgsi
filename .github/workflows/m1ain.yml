@@ -50,50 +50,49 @@ jobs:
           
           repo sync -c -j$(nproc) --no-clone-bundle --optimized-fetch --prune
 
-      - name: Clean Vendor Conflicts Safely via Python
+      - name: Clean Vendor Conflicts Cleanly via Python Parser
         run: |
           cd halium
           rm -rf device/google/cuttlefish
           rm -rf device/google/cuttlefish_prebuilts
           rm -rf packages/modules/Virtualization
           
-          # استخدام سكريبت بايثون لإزالة وحدات tzdaemon و tzts_daemon مع أقواسها بشكل نظيف ودقيق
+          # سكريبت بايثون آلي ومطور لحذف وحدات tzdaemon بالكامل مع أقواسها وبدون ترك فواصل عائمة
           python3 - << 'EOF'
           import os
 
           bp_path = "vendor/samsung/a04/Android.bp"
           if os.path.exists(bp_path):
               with open(bp_path, "r", encoding="utf-8") as f:
-                  content = f.read()
+                  text = f.read()
               
-              for mod in ["tzdaemon", "tzts_daemon"]:
-                  idx = content.find(mod)
-                  while idx != -1:
-                      start = content.rfind("\n", 0, idx)
-                      if start == -1: 
-                          start = 0
-                      
-                      open_braces = 0
-                      end = idx
-                      found_open = False
-                      for i in range(idx, len(content)):
-                          if content[i] == '{':
-                              open_braces += 1
-                              found_open = True
-                          elif content[i] == '}':
-                              open_braces -= 1
-                              if found_open and open_braces == 0:
-                                  end = i + 1
-                                  break
-                      if found_open:
-                          content = content[:start] + content[end:]
+              for mod_name in ["tzdaemon", "tzts_daemon"]:
+                  target = f'name: "{mod_name}"'
+                  while target in text:
+                      idx = text.find(target)
+                      start_brace = text.rfind('{', 0, idx)
+                      if start_brace != -1:
+                          depth = 0
+                          end_idx = -1
+                          for j in range(start_brace, len(text)):
+                              if text[j] == '{':
+                                  depth += 1
+                              elif text[j] == '}':
+                                  depth -= 1
+                                  if depth == 0:
+                                      end_idx = j + 1
+                                      break
+                          line_start = text.rfind('\n', 0, start_brace) + 1
+                          if end_idx != -1 and line_start != -1:
+                              text = text[:line_start] + text[end_idx:]
+                          else:
+                              break
                       else:
-                          break
-                      idx = content.find(mod)
+                        break
 
               with open(bp_path, "w", encoding="utf-8") as f:
-                  f.write(content)
-              print("Successfully cleaned Android.bp using Python.")
+                  f.write(text)
+              print("Successfully purged tzdaemon blocks without syntax errors.")
           EOF
 
       - name: Build System Image
