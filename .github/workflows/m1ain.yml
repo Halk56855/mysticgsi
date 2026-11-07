@@ -35,7 +35,8 @@ jobs:
       - name: Initialize Repo and Add Device Manifest
         run: |
           mkdir halium && cd halium
-          repo init -u https://github.com/Halium/android -b halium-11.0 --depth=1
+          # تم التحديث إلى فرع halium-12.0 لضمان استقرار الباتشات والتوافقية
+          repo init -u https://github.com/Halium/android -b halium-12.0 --depth=1
           
           mkdir -p .repo/local_manifests
           cat << 'EOF' > .repo/local_manifests/a04.xml
@@ -49,24 +50,6 @@ jobs:
           EOF
           
           repo sync -c -j$(nproc) --no-clone-bundle --optimized-fetch --prune
-
-      - name: Purge and Fix API Level Conflicts
-        run: |
-          cd halium/device/samsung/a04
-          find . \( -name "*.mk" -o -name "*.prop" \) -type f -exec grep -l "PRODUCT_SHIPPING_API_LEVEL" {} + | while read file; do
-            sed -i '/PRODUCT_SHIPPING_API_LEVEL/d' "$file"
-          done
-          find . -name "BoardConfig*.mk" -type f -exec grep -l "BOARD_SYSTEMSDK_VERSIONS" {} + | while read file; do
-            sed -i '/BOARD_SYSTEMSDK_VERSIONS/d' "$file"
-          done
-          echo "" >> BoardConfig.mk
-          echo "BOARD_SYSTEMSDK_VERSIONS := 30" >> BoardConfig.mk
-
-      - name: Remove Problematic libvpx Module
-        run: |
-          cd halium/external
-          # إزالة مجلد libvpx بالكامل لتجنب أخطاء الفرز والتباين في سويڭ
-          rm -rf libvpx
 
       - name: Build System Image
         run: |
