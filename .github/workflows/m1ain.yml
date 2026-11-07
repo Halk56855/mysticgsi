@@ -72,7 +72,8 @@ jobs:
                   "libstagefright_aidl_bufferpool2", 
                   "vendor.samsung.hardware.hyper-service", 
                   "libminiui",
-                  "prebuilt_libclearkeycasplugin"
+                  "prebuilt_libclearkeycasplugin",
+                  "libwvdrmengine"
               ]
               
               for mod_name in target_modules:
@@ -101,7 +102,7 @@ jobs:
 
               with open(bp_path, "w", encoding="utf-8") as f:
                   f.write(text)
-              print("Successfully purged prebuilt_libclearkeycasplugin and other modules from Android.bp.")
+              print("Successfully purged libwvdrmengine and other conflicting modules from Android.bp.")
           EOF
 
       - name: Build System Image
