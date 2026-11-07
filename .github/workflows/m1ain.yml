@@ -50,11 +50,11 @@ jobs:
           
           repo sync -c -j$(nproc) --no-clone-bundle --optimized-fetch --prune
 
-      - name: Remove Unnecessary Cuttlefish Emulator Files
+      - name: Remove Unnecessary Cuttlefish Files
         run: |
           cd halium
-          # إزالة مجلد الحزمة الوهمية لتجنب أخطاء اعتماديات المضيف
           rm -rf device/google/cuttlefish
+          rm -rf device/google/cuttlefish_prebuilts
 
       - name: Build System Image
         run: |
