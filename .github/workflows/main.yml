@@ -29,6 +29,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+          cache: 'pip'
 
       - name: Install MysticGSI & Dependencies
         run: |
@@ -47,12 +48,16 @@ jobs:
           echo "=== فحص حجم ونوع الملف المحمل ==="
           ls -lh stock_firmware.zip
           file stock_firmware.zip
-          # إذا كان حجم الملف صغيراً جداً (أقل من 1 غيغابايت)، فهذا يعني أن الرابط غير مباشر أو خاطئ
           SIZE_MB=$(du -m stock_firmware.zip | cut -f1)
           if [ "$SIZE_MB" -lt 500 ]; then
             echo "خطأ: الملف المحمل صغير جداً ($SIZE_MB MB)، يبدو أنه صفحة خطأ أو رابط غير مباشر وليس فيرموير حقيقي!"
             exit 1
           fi
+
+      - name: Fix Workspace Permissions
+        run: |
+          sudo chown -R $USER:$USER workspace
+          chmod -R 777 workspace/tmp || true
 
       - name: Build Proprietary GSI
         run: |
@@ -72,3 +77,4 @@ jobs:
         with:
           name: Proprietary-GSI-Output
           path: workspace/out/**/*
+          retention-days: 3
