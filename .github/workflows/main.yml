@@ -54,20 +54,16 @@ jobs:
             exit 1
           fi
 
-      - name: Fix Workspace Permissions
-        run: |
-          sudo chown -R $USER:$USER workspace
-          chmod -R 777 workspace/tmp || true
-
       - name: Build Proprietary GSI
         run: |
           cd workspace
-          source .venv/bin/activate
-          python3 cli.py build a04_gsi stock_firmware.zip --type auto --compress
+          # تشغيل أداة البناء بصلاحيات الجذور لتفادي مشاكل e2fsdroid وملفات tmp
+          sudo .venv/bin/python3 cli.py build a04_gsi stock_firmware.zip --type auto --compress
 
       - name: Compress System Image with GZ
         run: |
           cd workspace
+          sudo chown -R $USER:$USER out || true
           find out -name "system.img" -exec pigz -9 {} \;
           find out -name "*.img" -delete || true
           find out -name "*.img.gz" -ls
