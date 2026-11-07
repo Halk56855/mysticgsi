@@ -50,14 +50,14 @@ jobs:
           
           repo sync -c -j$(nproc) --no-clone-bundle --optimized-fetch --prune
 
-      - name: Clean Vendor Conflicts Cleanly via Python Parser
+      - name: Clean Vendor Conflicts & Bufferpool via Python Parser
         run: |
           cd halium
           rm -rf device/google/cuttlefish
           rm -rf device/google/cuttlefish_prebuilts
           rm -rf packages/modules/Virtualization
           
-          # سكريبت بايثون آلي ومطور لحذف وحدات tzdaemon بالكامل مع أقواسها وبدون ترك فواصل عائمة
+          # سكريبت بايثون لإزالة وحدات tzdaemon و libstagefright_aidl_bufferpool2 بالكامل لتجنب أي أخطاء
           python3 - << 'EOF'
           import os
 
@@ -66,7 +66,8 @@ jobs:
               with open(bp_path, "r", encoding="utf-8") as f:
                   text = f.read()
               
-              for mod_name in ["tzdaemon", "tzts_daemon"]:
+              target_modules = ["tzdaemon", "tzts_daemon", "libstagefright_aidl_bufferpool2"]
+              for mod_name in target_modules:
                   target = f'name: "{mod_name}"'
                   while target in text:
                       idx = text.find(target)
@@ -88,11 +89,11 @@ jobs:
                           else:
                               break
                       else:
-                        break
+                          break
 
               with open(bp_path, "w", encoding="utf-8") as f:
                   f.write(text)
-              print("Successfully purged tzdaemon blocks without syntax errors.")
+              print("Successfully purged conflicting modules from Android.bp.")
           EOF
 
       - name: Build System Image
