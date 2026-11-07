@@ -50,20 +50,51 @@ jobs:
           
           repo sync -c -j$(nproc) --no-clone-bundle --optimized-fetch --prune
 
-      - name: Remove Unnecessary Modules and Clean Vendor Conflicts
+      - name: Clean Vendor Conflicts Safely via Python
         run: |
           cd halium
           rm -rf device/google/cuttlefish
           rm -rf device/google/cuttlefish_prebuilts
           rm -rf packages/modules/Virtualization
           
-          # تطهير وتعطيل وحدات tzdaemon و tzts_daemon التي تطلب libuuid مفقود في الفيندور
-          if [ -d "vendor/samsung/a04" ]; then
-            cd vendor/samsung/a04
-            find . -name "Android.bp" -type f -exec sed -i '/tzdaemon/,/}/d' {} +
-            find . -name "Android.bp" -type f -exec sed -i '/tzts_daemon/,/}/d' {} +
-            echo "Vendor tzdaemon modules patched successfully."
-          fi
+          # استخدام سكريبت بايثون لإزالة وحدات tzdaemon و tzts_daemon مع أقواسها بشكل نظيف ودقيق
+          python3 - << 'EOF'
+          import os
+
+          bp_path = "vendor/samsung/a04/Android.bp"
+          if os.path.exists(bp_path):
+              with open(bp_path, "r", encoding="utf-8") as f:
+                  content = f.read()
+              
+              for mod in ["tzdaemon", "tzts_daemon"]:
+                  idx = content.find(mod)
+                  while idx != -1:
+                      start = content.rfind("\n", 0, idx)
+                      if start == -1: 
+                          start = 0
+                      
+                      open_braces = 0
+                      end = idx
+                      found_open = False
+                      for i in range(idx, len(content)):
+                          if content[i] == '{':
+                              open_braces += 1
+                              found_open = True
+                          elif content[i] == '}':
+                              open_braces -= 1
+                              if found_open and open_braces == 0:
+                                  end = i + 1
+                                  break
+                      if found_open:
+                          content = content[:start] + content[end:]
+                      else:
+                          break
+                      idx = content.find(mod)
+
+              with open(bp_path, "w", encoding="utf-8") as f:
+                  f.write(content)
+              print("Successfully cleaned Android.bp using Python.")
+          EOF
 
       - name: Build System Image
         run: |
