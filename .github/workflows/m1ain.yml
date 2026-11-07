@@ -71,7 +71,8 @@ jobs:
                   "tzts_daemon", 
                   "libstagefright_aidl_bufferpool2", 
                   "vendor.samsung.hardware.hyper-service", 
-                  "libminiui"
+                  "libminiui",
+                  "prebuilt_libclearkeycasplugin"
               ]
               
               for mod_name in target_modules:
@@ -100,7 +101,7 @@ jobs:
 
               with open(bp_path, "w", encoding="utf-8") as f:
                   f.write(text)
-              print("Successfully purged all problematic modules from Android.bp.")
+              print("Successfully purged prebuilt_libclearkeycasplugin and other modules from Android.bp.")
           EOF
 
       - name: Build System Image
