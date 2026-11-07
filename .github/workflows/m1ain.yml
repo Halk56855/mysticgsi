@@ -35,7 +35,6 @@ jobs:
       - name: Initialize Repo and Add Device Manifest
         run: |
           mkdir halium && cd halium
-          # تم التحديث إلى فرع halium-12.0 لضمان استقرار الباتشات والتوافقية
           repo init -u https://github.com/Halium/android -b halium-12.0 --depth=1
           
           mkdir -p .repo/local_manifests
@@ -50,6 +49,19 @@ jobs:
           EOF
           
           repo sync -c -j$(nproc) --no-clone-bundle --optimized-fetch --prune
+
+      - name: Fix Missing Bufferpool Dependency in Vendor
+        run: |
+          cd halium/vendor/samsung/a04
+          # البحث عن سطر الاعتمادية المفقودة في ملفات Android.bp وتعطيلها
+          if [ -f "Android.bp" ]; then
+            sed -i '/android.hardware.media.bufferpool2-V1-ndk/d' Android.bp || true
+          fi
+          # بحث شامل في حال وجودها بملفات أخرى داخل الفيندور
+          find . -name "Android.bp" -type f -exec grep -l "bufferpool2" {} + | while read file; do
+            sed -i '/bufferpool2/d' "$file"
+            echo "Patched: $file"
+          done
 
       - name: Build System Image
         run: |
