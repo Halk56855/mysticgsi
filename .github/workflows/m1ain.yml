@@ -50,21 +50,21 @@ jobs:
           
           repo sync -c -j$(nproc) --no-clone-bundle --optimized-fetch --prune
 
-      - name: Robust Python Cleanup for Vendor Android.bp
+      - name: Clean Vendor Android.bp Safely
         run: |
           cd halium
           rm -rf device/google/cuttlefish
           rm -rf device/google/cuttlefish_prebuilts
           rm -rf packages/modules/Virtualization
           
-          # سكريبت بايثون دقيق وشامل لإزالة الوحدات المتعلقة بالـ DRM والـ CAS والخدمات غير المتوافقة
+          # سكريبت بايثون محسن للبحث عن الوحدات وإزالتها بالكامل مع أقواسها دون ترك فواصل عائمة
           python3 - << 'EOF'
           import os
 
           bp_path = "vendor/samsung/a04/Android.bp"
           if os.path.exists(bp_path):
               with open(bp_path, "r", encoding="utf-8") as f:
-                  text = f.read()
+                  lines = f.readlines()
               
               keywords = [
                   "tzdaemon", 
@@ -76,32 +76,26 @@ jobs:
                   "wvdrmengine"
               ]
               
-              for kw in keywords:
-                  while kw in text:
-                      idx = text.find(kw)
-                      start_brace = text.rfind('{', 0, idx)
-                      if start_brace != -1:
-                          depth = 0
-                          end_idx = -1
-                          for j in range(start_brace, len(text)):
-                              if text[j] == '{':
-                                  depth += 1
-                              elif text[j] == '}':
-                                  depth -= 1
-                                  if depth == 0:
-                                      end_idx = j + 1
-                                      break
-                          line_start = text.rfind('\n', 0, start_brace) + 1
-                          if end_idx != -1 and line_start != -1:
-                              text = text[:line_start] + text[end_idx:]
-                          else:
-                              break
-                      else:
-                          break
+              new_lines = []
+              skip = False
+              brace_count = 0
+              
+              for line in lines:
+                  if not skip:
+                      if any(kw in line for kw in keywords) and ("name:" in line or "cc_prebuilt_library" in line or "android_app" in line or "cc_binary" in line):
+                          skip = True
+                          brace_count = line.count('{') - line.count('}')
+                          # إزالة السطر الحالي أيضاً إذا بدأ تعريف الوحدة
+                          continue
+                      new_lines.append(line)
+                  else:
+                      brace_count += line.count('{') - line.count('}')
+                      if brace_count <= 0:
+                          skip = False
 
               with open(bp_path, "w", encoding="utf-8") as f:
-                  f.write(text)
-              print("Successfully purged all target modules containing DRM/CAS keywords.")
+                  f.writelines(new_lines)
+              print("Successfully cleaned Android.bp lines cleanly.")
           EOF
 
       - name: Build System Image
