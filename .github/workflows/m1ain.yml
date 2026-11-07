@@ -50,14 +50,14 @@ jobs:
           
           repo sync -c -j$(nproc) --no-clone-bundle --optimized-fetch --prune
 
-      - name: Clean Vendor Conflicts & Bufferpool via Python Parser
+      - name: Clean All Vendor Conflicts & Missing Modules via Python
         run: |
           cd halium
           rm -rf device/google/cuttlefish
           rm -rf device/google/cuttlefish_prebuilts
           rm -rf packages/modules/Virtualization
           
-          # سكريبت بايثون لإزالة وحدات tzdaemon و libstagefright_aidl_bufferpool2 بالكامل لتجنب أي أخطاء
+          # سكريبت بايثون شامل لإزالة جميع الوحدات المتعارضة أو المفقودة من Android.bp
           python3 - << 'EOF'
           import os
 
@@ -66,7 +66,14 @@ jobs:
               with open(bp_path, "r", encoding="utf-8") as f:
                   text = f.read()
               
-              target_modules = ["tzdaemon", "tzts_daemon", "libstagefright_aidl_bufferpool2"]
+              target_modules = [
+                  "tzdaemon", 
+                  "tzts_daemon", 
+                  "libstagefright_aidl_bufferpool2", 
+                  "vendor.samsung.hardware.hyper-service", 
+                  "libminiui"
+              ]
+              
               for mod_name in target_modules:
                   target = f'name: "{mod_name}"'
                   while target in text:
@@ -93,7 +100,7 @@ jobs:
 
               with open(bp_path, "w", encoding="utf-8") as f:
                   f.write(text)
-              print("Successfully purged conflicting modules from Android.bp.")
+              print("Successfully purged all problematic modules from Android.bp.")
           EOF
 
       - name: Build System Image
