@@ -50,18 +50,11 @@ jobs:
           
           repo sync -c -j$(nproc) --no-clone-bundle --optimized-fetch --prune
 
-      - name: Fix Missing Bufferpool Dependency in Vendor
+      - name: Remove Unnecessary Cuttlefish Emulator Files
         run: |
-          cd halium/vendor/samsung/a04
-          # البحث عن سطر الاعتمادية المفقودة في ملفات Android.bp وتعطيلها
-          if [ -f "Android.bp" ]; then
-            sed -i '/android.hardware.media.bufferpool2-V1-ndk/d' Android.bp || true
-          fi
-          # بحث شامل في حال وجودها بملفات أخرى داخل الفيندور
-          find . -name "Android.bp" -type f -exec grep -l "bufferpool2" {} + | while read file; do
-            sed -i '/bufferpool2/d' "$file"
-            echo "Patched: $file"
-          done
+          cd halium
+          # إزالة مجلد الحزمة الوهمية لتجنب أخطاء اعتماديات المضيف
+          rm -rf device/google/cuttlefish
 
       - name: Build System Image
         run: |
