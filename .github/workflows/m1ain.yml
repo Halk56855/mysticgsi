@@ -50,13 +50,21 @@ jobs:
           
           repo sync -c -j$(nproc) --no-clone-bundle --optimized-fetch --prune
 
-      - name: Remove Unnecessary Modules and Cuttlefish Files
+      - name: Remove Unnecessary Modules and Clean Vendor Conflicts
         run: |
           cd halium
+          # إزالة الحزم والمحاكيات غير الضرورية
           rm -rf device/google/cuttlefish
           rm -rf device/google/cuttlefish_prebuilts
-          # إزالة حزمة الـ Virtualization لتجنب أخطاء اعتماديات المحاكي المفقودة
           rm -rf packages/modules/Virtualization
+          
+          # مسح وتطهير تبعية bufferpool2 من مجلد الفيندور نهائياً
+          if [ -d "vendor/samsung/a04" ]; then
+            cd vendor/samsung/a04
+            find . -name "Android.bp" -type f -exec sed -i '/bufferpool2/d' {} +
+            find . -name "Android.bp" -type f -exec sed -i '/libstagefright_aidl_bufferpool2/d' {} +
+            echo "Vendor Android.bp patched successfully."
+          fi
 
       - name: Build System Image
         run: |
