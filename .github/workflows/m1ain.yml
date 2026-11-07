@@ -50,11 +50,13 @@ jobs:
           
           repo sync -c -j$(nproc) --no-clone-bundle --optimized-fetch --prune
 
-      - name: Remove Unnecessary Cuttlefish Files
+      - name: Remove Unnecessary Modules and Cuttlefish Files
         run: |
           cd halium
           rm -rf device/google/cuttlefish
           rm -rf device/google/cuttlefish_prebuilts
+          # إزالة حزمة الـ Virtualization لتجنب أخطاء اعتماديات المحاكي المفقودة
+          rm -rf packages/modules/Virtualization
 
       - name: Build System Image
         run: |
