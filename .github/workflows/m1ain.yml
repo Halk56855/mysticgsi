@@ -50,52 +50,66 @@ jobs:
           
           repo sync -c -j$(nproc) --no-clone-bundle --optimized-fetch --prune
 
-      - name: Clean Vendor Android.bp Safely
+      - name: Precise Python Parser to Clean Vendor Android.bp
         run: |
           cd halium
           rm -rf device/google/cuttlefish
           rm -rf device/google/cuttlefish_prebuilts
           rm -rf packages/modules/Virtualization
           
-          # سكريبت بايثون محسن للبحث عن الوحدات وإزالتها بالكامل مع أقواسها دون ترك فواصل عائمة
+          # سكريبت بايثون دقيق للغاية لحذف وحدات محددة بأسمائها بالكامل دون أخطاء تداخل
           python3 - << 'EOF'
           import os
 
           bp_path = "vendor/samsung/a04/Android.bp"
           if os.path.exists(bp_path):
               with open(bp_path, "r", encoding="utf-8") as f:
-                  lines = f.readlines()
-              
-              keywords = [
-                  "tzdaemon", 
-                  "tzts_daemon", 
-                  "libstagefright_aidl_bufferpool2", 
-                  "vendor.samsung.hardware.hyper-service", 
+                  text = f.read()
+
+              target_modules = [
+                  "tzdaemon",
+                  "tzts_daemon",
+                  "libstagefright_aidl_bufferpool2",
+                  "vendor.samsung.hardware.hyper-service",
                   "libminiui",
-                  "clearkeycasplugin",
-                  "wvdrmengine"
+                  "libclearkeycasplugin",
+                  "libwvdrmengine"
               ]
-              
-              new_lines = []
-              skip = False
-              brace_count = 0
-              
-              for line in lines:
-                  if not skip:
-                      if any(kw in line for kw in keywords) and ("name:" in line or "cc_prebuilt_library" in line or "android_app" in line or "cc_binary" in line):
-                          skip = True
-                          brace_count = line.count('{') - line.count('}')
-                          # إزالة السطر الحالي أيضاً إذا بدأ تعريف الوحدة
-                          continue
-                      new_lines.append(line)
-                  else:
-                      brace_count += line.count('{') - line.count('}')
-                      if brace_count <= 0:
-                          skip = False
+
+              for mod in target_modules:
+                  # البحث عن النمط الذي يعرف اسم الوحدة في Soong
+                  patterns = [f'name: "{mod}"', f"name: '{mod}'"]
+                  for pattern in patterns:
+                      while pattern in text:
+                          idx = text.find(pattern)
+                          # العثور على بداية تعريف الوحدة (عادة كلمة cc_, android_, prebuilt_, etc. قبل الـ {)
+                          start_brace = text.rfind('{', 0, idx)
+                          if start_brace == -1:
+                              break
+                          
+                          # العثور على بداية السطر الذي يحمل نوع الوحدة
+                          line_start = text.rfind('\n', 0, start_brace) + 1
+                          
+                          # تتبع الأقواس لإيجاد نهاية الكتلة بدقة
+                          depth = 0
+                          end_idx = -1
+                          for j in range(start_brace, len(text)):
+                              if text[j] == '{':
+                                  depth += 1
+                              elif text[j] == '}':
+                                  depth -= 1
+                                  if depth == 0:
+                                      end_idx = j + 1
+                                      break
+                          
+                          if end_idx != -1:
+                              text = text[:line_start] + text[end_idx:]
+                          else:
+                              break
 
               with open(bp_path, "w", encoding="utf-8") as f:
-                  f.writelines(new_lines)
-              print("Successfully cleaned Android.bp lines cleanly.")
+                  f.write(text)
+              print("Successfully purged conflicting modules precisely.")
           EOF
 
       - name: Build System Image
