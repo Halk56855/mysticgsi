@@ -53,17 +53,16 @@ jobs:
       - name: Remove Unnecessary Modules and Clean Vendor Conflicts
         run: |
           cd halium
-          # إزالة الحزم والمحاكيات غير الضرورية
           rm -rf device/google/cuttlefish
           rm -rf device/google/cuttlefish_prebuilts
           rm -rf packages/modules/Virtualization
           
-          # مسح وتطهير تبعية bufferpool2 من مجلد الفيندور نهائياً
+          # تطهير وتعطيل وحدات tzdaemon و tzts_daemon التي تطلب libuuid مفقود في الفيندور
           if [ -d "vendor/samsung/a04" ]; then
             cd vendor/samsung/a04
-            find . -name "Android.bp" -type f -exec sed -i '/bufferpool2/d' {} +
-            find . -name "Android.bp" -type f -exec sed -i '/libstagefright_aidl_bufferpool2/d' {} +
-            echo "Vendor Android.bp patched successfully."
+            find . -name "Android.bp" -type f -exec sed -i '/tzdaemon/,/}/d' {} +
+            find . -name "Android.bp" -type f -exec sed -i '/tzts_daemon/,/}/d' {} +
+            echo "Vendor tzdaemon modules patched successfully."
           fi
 
       - name: Build System Image
