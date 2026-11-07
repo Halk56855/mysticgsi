@@ -50,14 +50,14 @@ jobs:
           
           repo sync -c -j$(nproc) --no-clone-bundle --optimized-fetch --prune
 
-      - name: Clean All Vendor Conflicts & Missing Modules via Python
+      - name: Robust Python Cleanup for Vendor Android.bp
         run: |
           cd halium
           rm -rf device/google/cuttlefish
           rm -rf device/google/cuttlefish_prebuilts
           rm -rf packages/modules/Virtualization
           
-          # سكريبت بايثون شامل لإزالة جميع الوحدات المتعارضة أو المفقودة من Android.bp
+          # سكريبت بايثون دقيق وشامل لإزالة الوحدات المتعلقة بالـ DRM والـ CAS والخدمات غير المتوافقة
           python3 - << 'EOF'
           import os
 
@@ -66,20 +66,19 @@ jobs:
               with open(bp_path, "r", encoding="utf-8") as f:
                   text = f.read()
               
-              target_modules = [
+              keywords = [
                   "tzdaemon", 
                   "tzts_daemon", 
                   "libstagefright_aidl_bufferpool2", 
                   "vendor.samsung.hardware.hyper-service", 
                   "libminiui",
-                  "prebuilt_libclearkeycasplugin",
-                  "libwvdrmengine"
+                  "clearkeycasplugin",
+                  "wvdrmengine"
               ]
               
-              for mod_name in target_modules:
-                  target = f'name: "{mod_name}"'
-                  while target in text:
-                      idx = text.find(target)
+              for kw in keywords:
+                  while kw in text:
+                      idx = text.find(kw)
                       start_brace = text.rfind('{', 0, idx)
                       if start_brace != -1:
                           depth = 0
@@ -102,7 +101,7 @@ jobs:
 
               with open(bp_path, "w", encoding="utf-8") as f:
                   f.write(text)
-              print("Successfully purged libwvdrmengine and other conflicting modules from Android.bp.")
+              print("Successfully purged all target modules containing DRM/CAS keywords.")
           EOF
 
       - name: Build System Image
