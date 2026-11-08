@@ -57,7 +57,7 @@ jobs:
           rm -rf device/google/cuttlefish_prebuilts
           rm -rf packages/modules/Virtualization
           
-          # سكريبت بايثون دقيق لإزالة حلقات التبعية الخاصة بـ PowerVR و GPU
+          # سكريبت بايثون دقيق لإزالة مكتبة libusc والوحدات السابقة المعطوبة
           python3 - << 'EOF'
           import os
 
@@ -82,7 +82,8 @@ jobs:
                   "factory",
                   "libacdk",
                   "libPVRMtkutils",
-                  "libsrv_um"
+                  "libsrv_um",
+                  "libusc"
               ]
 
               for mod in target_modules:
@@ -114,7 +115,7 @@ jobs:
 
               with open(bp_path, "w", encoding="utf-8") as f:
                   f.write(text)
-              print("Successfully purged dependency cycle modules (libPVRMtkutils, libsrv_um).")
+              print("Successfully purged libusc and other conflicting modules.")
           EOF
 
       - name: Build System Image
