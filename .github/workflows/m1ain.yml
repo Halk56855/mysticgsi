@@ -57,7 +57,7 @@ jobs:
           rm -rf device/google/cuttlefish_prebuilts
           rm -rf packages/modules/Virtualization
           
-          # سكريبت بايثون لإزالة الوحدات المعطوبة وتنظيف apex_available من com.android.virt
+          # سكريبت بايثون لإزالة الوحدات المعطوبة وحذف أسطر com.android.virt تماماً
           python3 - << 'EOF'
           import os, glob
 
@@ -108,17 +108,18 @@ jobs:
                   f.write(text)
               print("Successfully cleaned vendor Android.bp")
 
-          # 2. إزالة com.android.virt من جميع ملفات Android.bp في المشروع لتجنب أخطاء التبعية
+          # 2. حذف الأسطر التي تحتوي على com.android.virt من جميع ملفات Android.bp
           for bp_file in glob.glob("**/Android.bp", recursive=True):
               try:
                   with open(bp_file, "r", encoding="utf-8") as f:
-                      content = f.read()
-                  if "com.android.virt" in content:
-                      content = content.replace('"com.android.virt"', '""')
-                      content = content.replace("'com.android.virt'", "''")
+                      lines = f.readlines()
+                  
+                  new_lines = [line for line in lines if "com.android.virt" not in line]
+                  
+                  if len(new_lines) != len(lines):
                       with open(bp_file, "w", encoding="utf-8") as f:
-                          f.write(content)
-                      print(f"Removed com.android.virt from {bp_file}")
+                          f.writelines(new_lines)
+                      print(f"Removed com.android.virt lines from {bp_file}")
               except Exception as e:
                   pass
           EOF
