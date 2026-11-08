@@ -57,7 +57,7 @@ jobs:
           rm -rf device/google/cuttlefish_prebuilts
           rm -rf packages/modules/Virtualization
           
-          # سكريبت بايثون دقيق للغاية لحذف وحدات محددة بأسمائها بالكامل دون أخطاء تداخل
+          # سكريبت بايثون دقيق لإزالة الوحدات المتعارضة وتضمين libsec-ril المعتمدة على مكتبات قديمة
           python3 - << 'EOF'
           import os
 
@@ -73,24 +73,21 @@ jobs:
                   "vendor.samsung.hardware.hyper-service",
                   "libminiui",
                   "libclearkeycasplugin",
-                  "libwvdrmengine"
+                  "libwvdrmengine",
+                  "libsec-ril"
               ]
 
               for mod in target_modules:
-                  # البحث عن النمط الذي يعرف اسم الوحدة في Soong
                   patterns = [f'name: "{mod}"', f"name: '{mod}'"]
                   for pattern in patterns:
                       while pattern in text:
                           idx = text.find(pattern)
-                          # العثور على بداية تعريف الوحدة (عادة كلمة cc_, android_, prebuilt_, etc. قبل الـ {)
                           start_brace = text.rfind('{', 0, idx)
                           if start_brace == -1:
                               break
                           
-                          # العثور على بداية السطر الذي يحمل نوع الوحدة
                           line_start = text.rfind('\n', 0, start_brace) + 1
                           
-                          # تتبع الأقواس لإيجاد نهاية الكتلة بدقة
                           depth = 0
                           end_idx = -1
                           for j in range(start_brace, len(text)):
@@ -109,7 +106,7 @@ jobs:
 
               with open(bp_path, "w", encoding="utf-8") as f:
                   f.write(text)
-              print("Successfully purged conflicting modules precisely.")
+              print("Successfully purged libsec-ril and other conflicting modules.")
           EOF
 
       - name: Build System Image
