@@ -57,7 +57,7 @@ jobs:
           rm -rf device/google/cuttlefish_prebuilts
           rm -rf packages/modules/Virtualization
           
-          # سكريبت بايثون دقيق لإزالة مكتبة libacdk والوحدات السابقة المعطوبة
+          # سكريبت بايثون دقيق لإزالة حلقات التبعية الخاصة بـ PowerVR و GPU
           python3 - << 'EOF'
           import os
 
@@ -80,7 +80,9 @@ jobs:
                   "android.hardware.drm@1.4-service.clearkey",
                   "android.hardware.drm@1.4-service.widevine",
                   "factory",
-                  "libacdk"
+                  "libacdk",
+                  "libPVRMtkutils",
+                  "libsrv_um"
               ]
 
               for mod in target_modules:
@@ -112,7 +114,7 @@ jobs:
 
               with open(bp_path, "w", encoding="utf-8") as f:
                   f.write(text)
-              print("Successfully purged libacdk and other conflicting modules.")
+              print("Successfully purged dependency cycle modules (libPVRMtkutils, libsrv_um).")
           EOF
 
       - name: Build System Image
