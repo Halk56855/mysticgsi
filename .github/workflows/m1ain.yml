@@ -57,7 +57,7 @@ jobs:
           rm -rf device/google/cuttlefish_prebuilts
           rm -rf packages/modules/Virtualization
           
-          # سكريبت بايثون دقيق لإزالة الوحدات المتعلقة بـ libwvhidl و clearkey
+          # سكريبت بايثون دقيق لإزالة الوحدات المعطوبة وخدمة وافلاو DRM
           python3 - << 'EOF'
           import os
 
@@ -77,7 +77,8 @@ jobs:
                   "libsec-ril",
                   "vendor.mediatek.hardware.mtkpower@1.0-service",
                   "libwvhidl",
-                  "android.hardware.drm@1.4-service.clearkey"
+                  "android.hardware.drm@1.4-service.clearkey",
+                  "android.hardware.drm@1.4-service.widevine"
               ]
 
               for mod in target_modules:
@@ -109,7 +110,7 @@ jobs:
 
               with open(bp_path, "w", encoding="utf-8") as f:
                   f.write(text)
-              print("Successfully purged libwvhidl and clearkey DRM modules.")
+              print("Successfully purged widevine drm service and other conflicting modules.")
           EOF
 
       - name: Build System Image
