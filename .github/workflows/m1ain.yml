@@ -57,7 +57,7 @@ jobs:
           rm -rf device/google/cuttlefish_prebuilts
           rm -rf packages/modules/Virtualization
           
-          # سكريبت بايثون دقيق لإزالة مكتبة libglslcompiler والوحدات السابقة المعطوبة
+          # سكريبت بايثون دقيق لإزالة مكتبات libmemtrack_GL و libufwriter وباقي الوحدات المعطوبة
           python3 - << 'EOF'
           import os
 
@@ -84,7 +84,9 @@ jobs:
                   "libPVRMtkutils",
                   "libsrv_um",
                   "libusc",
-                  "libglslcompiler"
+                  "libglslcompiler",
+                  "libmemtrack_GL",
+                  "libufwriter"
               ]
 
               for mod in target_modules:
@@ -116,7 +118,7 @@ jobs:
 
               with open(bp_path, "w", encoding="utf-8") as f:
                   f.write(text)
-              print("Successfully purged libglslcompiler and other conflicting modules.")
+              print("Successfully purged libmemtrack_GL, libufwriter, and other conflicting modules.")
           EOF
 
       - name: Build System Image
