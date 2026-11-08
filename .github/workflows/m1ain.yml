@@ -57,7 +57,7 @@ jobs:
           rm -rf device/google/cuttlefish_prebuilts
           rm -rf packages/modules/Virtualization
           
-          # سكريبت بايثون دقيق لإزالة الوحدات المتعارضة وتضمين libsec-ril المعتمدة على مكتبات قديمة
+          # سكريبت بايثون دقيق لإزالة الوحدات المتعارضة وتضمين وحدة الطاقة mtkpower
           python3 - << 'EOF'
           import os
 
@@ -74,7 +74,8 @@ jobs:
                   "libminiui",
                   "libclearkeycasplugin",
                   "libwvdrmengine",
-                  "libsec-ril"
+                  "libsec-ril",
+                  "vendor.mediatek.hardware.mtkpower@1.0-service"
               ]
 
               for mod in target_modules:
@@ -106,7 +107,7 @@ jobs:
 
               with open(bp_path, "w", encoding="utf-8") as f:
                   f.write(text)
-              print("Successfully purged libsec-ril and other conflicting modules.")
+              print("Successfully purged mtkpower and other conflicting modules.")
           EOF
 
       - name: Build System Image
