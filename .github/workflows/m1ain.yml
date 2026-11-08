@@ -57,7 +57,7 @@ jobs:
           rm -rf device/google/cuttlefish_prebuilts
           rm -rf packages/modules/Virtualization
           
-          # سكريبت بايثون دقيق لإزالة وحدة libEGL_mtk وباقي الوحدات المعطوبة السابقة
+          # سكريبت بايثون دقيق لإزالة وحدات GLES و Vulkan وباقي الوحدات المعطوبة
           python3 - << 'EOF'
           import os
 
@@ -92,7 +92,10 @@ jobs:
                   "libPVROCL",
                   "gralloc.rogue",
                   "libIMGegl",
-                  "libEGL_mtk"
+                  "libEGL_mtk",
+                  "libGLESv1_CM_mtk",
+                  "vulkan.mt6765",
+                  "libGLESv2_mtk"
               ]
 
               for mod in target_modules:
@@ -124,7 +127,7 @@ jobs:
 
               with open(bp_path, "w", encoding="utf-8") as f:
                   f.write(text)
-              print("Successfully purged libEGL_mtk and other conflicting modules.")
+              print("Successfully purged GLES, Vulkan, and other conflicting modules.")
           EOF
 
       - name: Build System Image
