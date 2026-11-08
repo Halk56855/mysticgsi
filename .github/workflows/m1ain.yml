@@ -57,11 +57,11 @@ jobs:
           rm -rf device/google/cuttlefish_prebuilts
           rm -rf packages/modules/Virtualization
           
-          # سكريبت بايثون لإزالة الوحدات المعطوبة وحذف أسطر com.android.virt تماماً
+          # سكريبت بايثون آمن ومتقدم باستخدام Regex لتنظيف الوحدات دون إتلاف الملفات
           python3 - << 'EOF'
-          import os, glob
+          import os, glob, re
 
-          # 1. تنظيف ملف vendor Android.bp
+          # 1. تنظيف ملف vendor Android.bp (إزالة الوحدات المعطوبة تماماً)
           bp_path = "vendor/samsung/a04/Android.bp"
           if os.path.exists(bp_path):
               with open(bp_path, "r", encoding="utf-8") as f:
@@ -108,18 +108,21 @@ jobs:
                   f.write(text)
               print("Successfully cleaned vendor Android.bp")
 
-          # 2. حذف الأسطر التي تحتوي على com.android.virt من جميع ملفات Android.bp
+          # 2. استخدام Regex لإزالة "com.android.virt" فقط من أي ملف Android.bp دون كسر البنية
           for bp_file in glob.glob("**/Android.bp", recursive=True):
               try:
                   with open(bp_file, "r", encoding="utf-8") as f:
-                      lines = f.readlines()
+                      content = f.read()
                   
-                  new_lines = [line for line in lines if "com.android.virt" not in line]
-                  
-                  if len(new_lines) != len(lines):
+                  if "com.android.virt" in content:
+                      # إزالة النص مع الفواصل المحيطة به بأمان
+                      content = re.sub(r',\s*"com.android.virt"', '', content)
+                      content = re.sub(r'"com.android.virt"\s*,', '', content)
+                      content = re.sub(r'"com.android.virt"', '', content)
+                      
                       with open(bp_file, "w", encoding="utf-8") as f:
-                          f.writelines(new_lines)
-                      print(f"Removed com.android.virt lines from {bp_file}")
+                          f.write(content)
+                      print(f"Cleaned com.android.virt references safely in {bp_file}")
               except Exception as e:
                   pass
           EOF
