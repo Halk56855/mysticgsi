@@ -57,7 +57,7 @@ jobs:
           rm -rf device/google/cuttlefish_prebuilts
           rm -rf packages/modules/Virtualization
           
-          # سكريبت بايثون دقيق لإزالة وحدة allocator-mediatek والوحدات المعطوبة السابقة
+          # سكريبت بايثون دقيق لإزالة وحدات libPVROCL, gralloc.rogue, libIMGegl وباقي الوحدات المعطوبة
           python3 - << 'EOF'
           import os
 
@@ -88,7 +88,10 @@ jobs:
                   "libmemtrack_GL",
                   "libufwriter",
                   "memtrack.default",
-                  "android.hardware.graphics.allocator@4.0-service-mediatek"
+                  "android.hardware.graphics.allocator@4.0-service-mediatek",
+                  "libPVROCL",
+                  "gralloc.rogue",
+                  "libIMGegl"
               ]
 
               for mod in target_modules:
@@ -120,7 +123,7 @@ jobs:
 
               with open(bp_path, "w", encoding="utf-8") as f:
                   f.write(text)
-              print("Successfully purged graphics allocator service and other conflicting modules.")
+              print("Successfully purged libPVROCL, gralloc.rogue, libIMGegl, and other conflicting modules.")
           EOF
 
       - name: Build System Image
