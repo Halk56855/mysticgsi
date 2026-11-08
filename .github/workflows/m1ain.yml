@@ -57,7 +57,7 @@ jobs:
           rm -rf device/google/cuttlefish_prebuilts
           rm -rf packages/modules/Virtualization
           
-          # سكريبت بايثون دقيق لإزالة وحدة memtrack.default والوحدات المعطوبة السابقة
+          # سكريبت بايثون دقيق لإزالة وحدة allocator-mediatek والوحدات المعطوبة السابقة
           python3 - << 'EOF'
           import os
 
@@ -87,7 +87,8 @@ jobs:
                   "libglslcompiler",
                   "libmemtrack_GL",
                   "libufwriter",
-                  "memtrack.default"
+                  "memtrack.default",
+                  "android.hardware.graphics.allocator@4.0-service-mediatek"
               ]
 
               for mod in target_modules:
@@ -119,7 +120,7 @@ jobs:
 
               with open(bp_path, "w", encoding="utf-8") as f:
                   f.write(text)
-              print("Successfully purged memtrack.default and other conflicting modules.")
+              print("Successfully purged graphics allocator service and other conflicting modules.")
           EOF
 
       - name: Build System Image
