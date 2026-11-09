@@ -11,14 +11,28 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Free Up Disk Space & Setup Swap
+      - name: Extreme Disk Space Cleanup & Setup Swap
         run: |
-          echo "Freeing up disk space..."
+          echo "=== BEFORE CLEANUP ==="
+          df -h
+
+          echo "Removing heavy preinstalled packages and caches..."
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /opt/ghc
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/az
+          sudo rm -rf /opt/pipx
+          sudo rm -rf /usr/share/swift
+          sudo rm -rf /usr/local/julia
+          sudo rm -rf /usr/share/miniconda
+          
           sudo docker image prune --all --force
+          sudo apt-get clean
+          sudo apt-get purge -y azure-cli google-cloud-cli microsoft-edge-stable firefox powershell dotnet-sdk-* || true
+
+          echo "=== AFTER CLEANUP ==="
           df -h
 
           echo "Setting up 16GB Swap safely..."
