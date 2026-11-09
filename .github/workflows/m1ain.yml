@@ -48,7 +48,8 @@ jobs:
           </manifest>
           EOF
           
-          repo sync -c -j$(nproc) --no-clone-bundle --optimized-fetch --prune
+          # تقليل خيوط الـ repo sync لحماية الذاكرة أيضاً
+          repo sync -c -j4 --no-clone-bundle --optimized-fetch --prune
 
       - name: Precise Python Parser to Clean Vendor and System Android.bp
         run: |
@@ -57,11 +58,9 @@ jobs:
           rm -rf device/google/cuttlefish_prebuilts
           rm -rf packages/modules/Virtualization
           
-          # سكريبت بايثون آمن ومتقدم باستخدام Regex لتنظيف الوحدات دون إتلاف الملفات
           python3 - << 'EOF'
           import os, glob, re
 
-          # 1. تنظيف ملف vendor Android.bp (إزالة الوحدات المعطوبة تماماً)
           bp_path = "vendor/samsung/a04/Android.bp"
           if os.path.exists(bp_path):
               with open(bp_path, "r", encoding="utf-8") as f:
@@ -106,23 +105,17 @@ jobs:
 
               with open(bp_path, "w", encoding="utf-8") as f:
                   f.write(text)
-              print("Successfully cleaned vendor Android.bp")
 
-          # 2. استخدام Regex لإزالة "com.android.virt" فقط من أي ملف Android.bp دون كسر البنية
           for bp_file in glob.glob("**/Android.bp", recursive=True):
               try:
                   with open(bp_file, "r", encoding="utf-8") as f:
                       content = f.read()
-                  
                   if "com.android.virt" in content:
-                      # إزالة النص مع الفواصل المحيطة به بأمان
                       content = re.sub(r',\s*"com.android.virt"', '', content)
                       content = re.sub(r'"com.android.virt"\s*,', '', content)
                       content = re.sub(r'"com.android.virt"', '', content)
-                      
                       with open(bp_file, "w", encoding="utf-8") as f:
                           f.write(content)
-                      print(f"Cleaned com.android.virt references safely in {bp_file}")
               except Exception as e:
                   pass
           EOF
@@ -132,4 +125,5 @@ jobs:
           cd halium
           source build/envsetup.sh
           lunch lineage_a04-userdebug
-          mka systemimage
+          # استخدام ملقم بناء محدود الخيوط (-j4) لتجنب انهيار الذاكرة (OOM)
+          mka -j4 systemimage
