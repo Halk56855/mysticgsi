@@ -21,7 +21,9 @@ jobs:
           sudo docker image prune --all --force
           df -h
 
-          echo "Setting up 16GB Swap to prevent OOM kills..."
+          echo "Setting up 16GB Swap safely..."
+          sudo swapoff /swapfile || true
+          sudo rm -f /swapfile
           sudo fallocate -l 16G /swapfile
           sudo chmod 600 /swapfile
           sudo mkswap /swapfile
