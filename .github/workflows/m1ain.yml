@@ -98,7 +98,8 @@ jobs:
                   "libmemtrack_GL", "libufwriter", "memtrack.default",
                   "android.hardware.graphics.allocator@4.0-service-mediatek",
                   "libPVROCL", "gralloc.rogue", "libIMGegl", "libEGL_mtk",
-                  "libGLESv1_CM_mtk", "vulkan.mt6765", "libGLESv2_mtk"
+                  "libGLESv1_CM_mtk", "vulkan.mt6765", "libGLESv2_mtk",
+                  "audio_common-aidl-cpp"
               ]
 
               for mod in target_modules:
