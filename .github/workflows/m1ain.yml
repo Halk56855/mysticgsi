@@ -11,7 +11,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Free Up Disk Space
+      - name: Free Up Disk Space & Setup Swap
         run: |
           echo "Freeing up disk space..."
           sudo rm -rf /usr/share/dotnet
@@ -20,6 +20,13 @@ jobs:
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
           sudo docker image prune --all --force
           df -h
+
+          echo "Setting up 16GB Swap to prevent OOM kills..."
+          sudo fallocate -l 16G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          free -h
 
       - name: Setup Build Environment
         run: |
@@ -48,7 +55,6 @@ jobs:
           </manifest>
           EOF
           
-          # تقليل خيوط الـ repo sync لحماية الذاكرة أيضاً
           repo sync -c -j4 --no-clone-bundle --optimized-fetch --prune
 
       - name: Precise Python Parser to Clean Vendor and System Android.bp
@@ -125,5 +131,4 @@ jobs:
           cd halium
           source build/envsetup.sh
           lunch lineage_a04-userdebug
-          # استخدام ملقم بناء محدود الخيوط (-j4) لتجنب انهيار الذاكرة (OOM)
           mka -j4 systemimage
