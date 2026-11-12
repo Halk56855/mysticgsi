@@ -1,4 +1,4 @@
-name: Convert XGSI for Galaxy A04 (Advanced & Modern Tools)
+name: Convert XGSI for Galaxy A04 (Final Fixed Tools)
 
 on:
   workflow_dispatch:
@@ -22,11 +22,17 @@ jobs:
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
 
-      - name: 2. Install Advanced System & Python Tools
+      - name: 2. Install Python 3.10, Brotli & Required Tools
         run: |
+          # الأوامر المطلوبة لتثبيت Brotli وتحديث الحزم وبايثون
+          sudo apt install brotli -y
+          sudo apt update && sudo apt install python3 python3-pip python3-brotli -y
+          
+          # تثبيت بايثون 3.10 لضمان توافقية أداة التحويل القديمة (imp)
+          sudo apt install -y android-sdk-libsparse-utils p7zip-full zip unzip wget git file curl software-properties-common
+          sudo add-apt-repository ppa:deadsnakes/ppa -y
           sudo apt-get update
-          sudo apt-get install -y android-sdk-libsparse-utils brotli p7zip-full zip unzip wget git file curl python3-pip python3-dev
-          pip3 install --upgrade pip
+          sudo apt-get install -y python3.10 python3.10-dev python3.10-distutils
 
       - name: 3. Download and Extract system.img
         run: |
@@ -36,13 +42,13 @@ jobs:
           7z x rom.zip -oextracted -y
           rm -f rom.zip
 
-      - name: 4. Convert using Modern & Flexible img2sdat Script
+      - name: 4. Convert system.img using Python 3.10
         run: |
-          mkdir -p work/flashable/META-INF/com/google/android
+          rm -rf tools
           mkdir -p tools
+          mkdir -p work/flashable/META-INF/com/google/android
           
-          # استنساخ أداة مطورة تدعم Raw و Sparse مباشرة
-          git clone https://github.com/Micky387/img2sdat.git tools/img2sdat || git clone https://github.com/xpirt/img2sdat.git tools/img2sdat
+          git clone https://github.com/xpirt/img2sdat.git tools/img2sdat
           
           SYS_IMG=$(find work/extracted -type f -name "system.img" | head -n 1)
           if [ -z "$SYS_IMG" ]; then
@@ -52,10 +58,10 @@ jobs:
 
           echo "Processing image: $SYS_IMG"
           
-          # التحويل الآمن المباشر باستخدام بايثون الحديث
-          python3 tools/img2sdat/img2sdat.py "$SYS_IMG" -o work/flashable -v 4 -p system
+          # التشغيل عبر بايثون 3.10 حصرياً
+          python3.10 tools/img2sdat/img2sdat.py "$SYS_IMG" -o work/flashable -v 4 -p system
 
-          # ضغط system.new.dat إلى system.new.dat.br بأقصى كفاءة
+          # ضغط system.new.dat إلى system.new.dat.br
           brotli -q 9 work/flashable/system.new.dat -o work/flashable/system.new.dat.br
           rm -f work/flashable/system.new.dat
 
