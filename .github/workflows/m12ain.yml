@@ -1,4 +1,4 @@
-name: Convert XGSI for Galaxy A04 (Final Fixed Tools)
+name: Convert XGSI for Galaxy A04 (Raw to Sparse Fixed)
 
 on:
   workflow_dispatch:
@@ -24,11 +24,8 @@ jobs:
 
       - name: 2. Install Python 3.10, Brotli & Required Tools
         run: |
-          # الأوامر المطلوبة لتثبيت Brotli وتحديث الحزم وبايثون
           sudo apt install brotli -y
           sudo apt update && sudo apt install python3 python3-pip python3-brotli -y
-          
-          # تثبيت بايثون 3.10 لضمان توافقية أداة التحويل القديمة (imp)
           sudo apt install -y android-sdk-libsparse-utils p7zip-full zip unzip wget git file curl software-properties-common
           sudo add-apt-repository ppa:deadsnakes/ppa -y
           sudo apt-get update
@@ -42,7 +39,7 @@ jobs:
           7z x rom.zip -oextracted -y
           rm -f rom.zip
 
-      - name: 4. Convert system.img using Python 3.10
+      - name: 4. Convert Raw system.img to Sparse and Run img2sdat
         run: |
           rm -rf tools
           mkdir -p tools
@@ -56,12 +53,16 @@ jobs:
             exit 1
           fi
 
-          echo "Processing image: $SYS_IMG"
+          echo "Processing raw image: $SYS_IMG"
           
-          # التشغيل عبر بايثون 3.10 حصرياً
-          python3.10 tools/img2sdat/img2sdat.py "$SYS_IMG" -o work/flashable -v 4 -p system
+          # تحويل ملف system.img العادي (Raw) إلى Sparse ليتوافق تماماً مع متطلبات img2sdat
+          img2simg "$SYS_IMG" work/system_sparse.img
+          
+          # تشغيل أداة التحويل عبر بايثون 3.10 باستخدام الملف المحول
+          python3.10 tools/img2sdat/img2sdat.py work/system_sparse.img -o work/flashable -v 4 -p system
+          rm -f work/system_sparse.img
 
-          # ضغط system.new.dat إلى system.new.dat.br
+          # ضغط system.new.dat إلى system.new.dat.br بأقصى كفاءة
           brotli -q 9 work/flashable/system.new.dat -o work/flashable/system.new.dat.br
           rm -f work/flashable/system.new.dat
 
