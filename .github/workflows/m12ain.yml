@@ -1,0 +1,97 @@
+name: Convert XGSI for Galaxy A04 to Single 7z (No Split)
+
+on:
+  workflow_dispatch:
+    inputs:
+      download_url:
+        description: 'رابط التحميل المباشر من Pixeldrain'
+        required: true
+        default: 'https://pixeldrain.com/api/file/mMTbBQQw?download'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: 1. Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+
+      - name: 2. Install required tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y android-sdk-libsparse-utils brotli p7zip-full zip unzip wget python3 git file curl
+
+      - name: 3. Download and Extract system.img
+        run: |
+          mkdir -p work/extracted
+          cd work
+          wget -O rom.zip "${{ github.event.inputs.download_url }}"
+          7z x rom.zip -oextracted -y
+          rm -f rom.zip
+
+      - name: 4. Convert system.img to system.new.dat.br
+        run: |
+          git clone https://github.com/xpirt/img2sdat.git tools/img2sdat
+          mkdir -p work/flashable/META-INF/com/google/android
+          
+          SYS_IMG=$(find work/extracted -type f -name "system.img" | head -n 1)
+          if [ -z "$SYS_IMG" ]; then
+            echo "Error: system.img not found!"
+            exit 1
+          fi
+
+          FILE_TYPE=$(file "$SYS_IMG")
+          if [[ "$FILE_TYPE" == *"Android sparse image"* ]]; then
+            simg2img "$SYS_IMG" work/system_raw.img
+            rm -f "$SYS_IMG"
+          else
+            mv "$SYS_IMG" work/system_raw.img
+          fi
+
+          python3 tools/img2sdat/img2sdat.py work/system_raw.img -o work/flashable -v 4 -p system
+          rm -f work/system_raw.img
+
+          # أقصى ضغط لملف br لتقليل الحجم الإجمالي قبل التغليف
+          brotli -q 9 work/flashable/system.new.dat -o work/flashable/system.new.dat.br
+          rm -f work/flashable/system.new.dat
+
+      - name: 5. Create TWRP Flashable Structure for Galaxy A04
+        run: |
+          wget -O work/flashable/META-INF/com/google/android/update-binary https://raw.githubusercontent.com/osm0sis/AnyKernel3/master/META-INF/com/google/android/update-binary
+          
+          cat << 'EOF' > work/flashable/META-INF/com/google/android/updater-script
+          ui_print("========================================");
+          ui_print("  Installing XGSI for Galaxy A04        ");
+          ui_print("========================================");
+          ui_print("Unmounting system if mounted...");
+          run_program("/sbin/sh", "-c", "umount /system_root || umount /system || true");
+          ui_print("Flashing system.new.dat.br to mapper/system...");
+          block_image_update("/dev/block/mapper/system", package_extract_file("system.transfer.list"), "system.new.dat.br", "system.patch.dat") || abort("E1001: Failed to update /dev/block/mapper/system.");
+          ui_print("Installation complete! Wipe Data/Format Data if first install.");
+          EOF
+
+      - name: 6. Pack to ZIP and Single Ultra-Compressed 7z (No Split)
+        run: |
+          cd work/flashable
+          # Store mode (-0) inside ZIP so 7z LZMA2 can compress raw data efficiently without double-compression overhead
+          zip -r0 ../XGSI_GalaxyA04_TWRP.zip .
+          cd ..
+          rm -rf flashable extracted
+          
+          # ضغط إلى ملف 7z واحد متصل بأقصى درجة ضغط (بدون خيار -v للتقسيم)
+          7z a -t7z -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on XGSI_GalaxyA04_TWRP.7z XGSI_GalaxyA04_TWRP.zip
+          rm -f XGSI_GalaxyA04_TWRP.zip
+          ls -lh XGSI_GalaxyA04_TWRP.7z
+
+      - name: 7. Upload Single File to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-a04-${{ github.run_number }}
+          name: "XGSI Galaxy A04 TWRP (${{ github.run_number }})"
+          files: work/XGSI_GalaxyA04_TWRP.7z
