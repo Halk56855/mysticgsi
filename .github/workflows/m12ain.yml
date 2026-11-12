@@ -1,4 +1,4 @@
-name: Convert XGSI for Galaxy A04 to Single 7z (No Split)
+name: Convert XGSI for Galaxy A04 (Advanced & Modern Tools)
 
 on:
   workflow_dispatch:
@@ -22,13 +22,11 @@ jobs:
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
 
-      - name: 2. Install required tools and Python 3.10
+      - name: 2. Install Advanced System & Python Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y android-sdk-libsparse-utils brotli p7zip-full zip unzip wget git file curl software-properties-common
-          sudo add-apt-repository ppa:deadsnakes/ppa -y
-          sudo apt-get update
-          sudo apt-get install -y python3.10 python3.10-distutils
+          sudo apt-get install -y android-sdk-libsparse-utils brotli p7zip-full zip unzip wget git file curl python3-pip python3-dev
+          pip3 install --upgrade pip
 
       - name: 3. Download and Extract system.img
         run: |
@@ -38,10 +36,13 @@ jobs:
           7z x rom.zip -oextracted -y
           rm -f rom.zip
 
-      - name: 4. Convert system.img to system.new.dat.br (using Python 3.10)
+      - name: 4. Convert using Modern & Flexible img2sdat Script
         run: |
-          git clone https://github.com/xpirt/img2sdat.git tools/img2sdat
           mkdir -p work/flashable/META-INF/com/google/android
+          mkdir -p tools
+          
+          # استنساخ أداة مطورة تدعم Raw و Sparse مباشرة
+          git clone https://github.com/Micky387/img2sdat.git tools/img2sdat || git clone https://github.com/xpirt/img2sdat.git tools/img2sdat
           
           SYS_IMG=$(find work/extracted -type f -name "system.img" | head -n 1)
           if [ -z "$SYS_IMG" ]; then
@@ -49,18 +50,12 @@ jobs:
             exit 1
           fi
 
-          FILE_TYPE=$(file "$SYS_IMG")
-          if [[ "$FILE_TYPE" == *"Android sparse image"* ]]; then
-            simg2img "$SYS_IMG" work/system_raw.img
-            rm -f "$SYS_IMG"
-          else
-            mv "$SYS_IMG" work/system_raw.img
-          fi
+          echo "Processing image: $SYS_IMG"
+          
+          # التحويل الآمن المباشر باستخدام بايثون الحديث
+          python3 tools/img2sdat/img2sdat.py "$SYS_IMG" -o work/flashable -v 4 -p system
 
-          # استخدام بايثون 3.10 حصرياً لتوافقية مكتبة imp القديمة
-          python3.10 tools/img2sdat/img2sdat.py work/system_raw.img -o work/flashable -v 4 -p system
-          rm -f work/system_raw.img
-
+          # ضغط system.new.dat إلى system.new.dat.br بأقصى كفاءة
           brotli -q 9 work/flashable/system.new.dat -o work/flashable/system.new.dat.br
           rm -f work/flashable/system.new.dat
 
@@ -79,12 +74,12 @@ jobs:
           ui_print("Installation complete! Wipe Data/Format Data if first install.");
           EOF
 
-      - name: 6. Pack to ZIP and Single Ultra-Compressed 7z (No Split)
+      - name: 6. Pack to ZIP and Ultra-Compress to Single 7z
         run: |
           cd work/flashable
           zip -r0 ../XGSI_GalaxyA04_TWRP.zip .
           cd ..
-          rm -rf flashable extracted
+          rm -rf flashable extracted tools
           
           7z a -t7z -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on XGSI_GalaxyA04_TWRP.7z XGSI_GalaxyA04_TWRP.zip
           rm -f XGSI_GalaxyA04_TWRP.zip
