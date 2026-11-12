@@ -22,10 +22,13 @@ jobs:
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
 
-      - name: 2. Install required tools
+      - name: 2. Install required tools and Python 3.10
         run: |
           sudo apt-get update
-          sudo apt-get install -y android-sdk-libsparse-utils brotli p7zip-full zip unzip wget python3 git file curl
+          sudo apt-get install -y android-sdk-libsparse-utils brotli p7zip-full zip unzip wget git file curl software-properties-common
+          sudo add-apt-repository ppa:deadsnakes/ppa -y
+          sudo apt-get update
+          sudo apt-get install -y python3.10 python3.10-distutils
 
       - name: 3. Download and Extract system.img
         run: |
@@ -35,7 +38,7 @@ jobs:
           7z x rom.zip -oextracted -y
           rm -f rom.zip
 
-      - name: 4. Convert system.img to system.new.dat.br
+      - name: 4. Convert system.img to system.new.dat.br (using Python 3.10)
         run: |
           git clone https://github.com/xpirt/img2sdat.git tools/img2sdat
           mkdir -p work/flashable/META-INF/com/google/android
@@ -54,10 +57,10 @@ jobs:
             mv "$SYS_IMG" work/system_raw.img
           fi
 
-          python3 tools/img2sdat/img2sdat.py work/system_raw.img -o work/flashable -v 4 -p system
+          # استخدام بايثون 3.10 حصرياً لتوافقية مكتبة imp القديمة
+          python3.10 tools/img2sdat/img2sdat.py work/system_raw.img -o work/flashable -v 4 -p system
           rm -f work/system_raw.img
 
-          # أقصى ضغط لملف br لتقليل الحجم الإجمالي قبل التغليف
           brotli -q 9 work/flashable/system.new.dat -o work/flashable/system.new.dat.br
           rm -f work/flashable/system.new.dat
 
@@ -79,12 +82,10 @@ jobs:
       - name: 6. Pack to ZIP and Single Ultra-Compressed 7z (No Split)
         run: |
           cd work/flashable
-          # Store mode (-0) inside ZIP so 7z LZMA2 can compress raw data efficiently without double-compression overhead
           zip -r0 ../XGSI_GalaxyA04_TWRP.zip .
           cd ..
           rm -rf flashable extracted
           
-          # ضغط إلى ملف 7z واحد متصل بأقصى درجة ضغط (بدون خيار -v للتقسيم)
           7z a -t7z -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on XGSI_GalaxyA04_TWRP.7z XGSI_GalaxyA04_TWRP.zip
           rm -f XGSI_GalaxyA04_TWRP.zip
           ls -lh XGSI_GalaxyA04_TWRP.7z
