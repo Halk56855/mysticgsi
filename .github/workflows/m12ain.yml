@@ -1,4 +1,4 @@
-name: Convert XGSI for Galaxy A04 (Auto-Split for 2GB Limit)
+name: Convert XGSI for Galaxy A04 (Final Corrected Split)
 
 on:
   workflow_dispatch:
@@ -77,21 +77,25 @@ jobs:
           ui_print("Installation complete! Wipe Data/Format Data if first install.");
           EOF
 
-      - name: 6. Pack to ZIP and Split into 1.9GB Parts (To bypass GitHub 2GB limit)
+      - name: 6. Pack to ZIP and Correctly Split 7z Parts
         run: |
           cd work/flashable
           zip -r0 ../XGSI_GalaxyA04_TWRP.zip .
           cd ..
           rm -rf flashable extracted tools
           
-          # ضغط الملف وتقسيمه إلى أجزاء بحجم 1.9 جيجابايت لكل جزء (لتفادي حد الرفع في جيت هاب)
-          7z a -t7z -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on -v1900m XGSI_GalaxyA04_TWRP.7z.001 XGSI_GalaxyA04_TWRP.zip
+          # ضغط الملف بـ 7z أولاً كملف واحد متصل
+          7z a -t7z -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on XGSI_GalaxyA04_TWRP.7z XGSI_GalaxyA04_TWRP.zip
           rm -f XGSI_GalaxyA04_TWRP.zip
-          ls -lh XGSI_GalaxyA04_TWRP.7z.*
+          
+          # تقسيم الملف الناتج بشكل صحيح إلى أجزاء بحجم 1.9 جيجابايت
+          7z a -v1900m XGSI_GalaxyA04_TWRP_split.7z XGSI_GalaxyA04_TWRP.7z
+          rm -f XGSI_GalaxyA04_TWRP.7z
+          ls -lh XGSI_GalaxyA04_TWRP_split.7z.*
 
-      - name: 7. Upload All Split Files to GitHub Releases
+      - name: 7. Upload Split Files to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-a04-${{ github.run_number }}
           name: "XGSI Galaxy A04 TWRP (Split Parts - ${{ github.run_number }})"
-          files: work/XGSI_GalaxyA04_TWRP.7z.*
+          files: work/XGSI_GalaxyA04_TWRP_split.7z.*
