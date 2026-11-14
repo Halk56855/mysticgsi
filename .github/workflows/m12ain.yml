@@ -1,4 +1,4 @@
-name: Convert XGSI for Galaxy A04 (TWRP Compatible ZIP)
+name: Convert XGSI for Galaxy A04 (Direct Image Flash)
 
 on:
   workflow_dispatch:
@@ -22,14 +22,9 @@ jobs:
           sudo rm -rf "/usr/local/share/boost"
           sudo rm -rf "$AGENT_TOOLSDIRECTORY"
 
-      - name: 2. Install Python 3.10, Brotli & Required Tools
+      - name: 2. Install Required Tools
         run: |
-          sudo apt install brotli -y
-          sudo apt update && sudo apt install python3 python3-pip python3-brotli -y
-          sudo apt install -y android-sdk-libsparse-utils p7zip-full zip unzip wget git file curl software-properties-common
-          sudo add-apt-repository ppa:deadsnakes/ppa -y
-          sudo apt-get update
-          sudo apt-get install -y python3.10 python3.10-dev python3.10-distutils
+          sudo apt update && sudo apt install -y p7zip-full zip unzip wget git file curl
 
       - name: 3. Download and Extract system.img
         run: |
@@ -39,62 +34,51 @@ jobs:
           7z x rom.zip -oextracted -y
           rm -f rom.zip
 
-      - name: 4. Convert Raw system.img to Sparse and Run img2sdat
+      - name: 4. Prepare Direct Flashable Package
         run: |
-          rm -rf tools
-          mkdir -p tools
           mkdir -p work/flashable/META-INF/com/google/android
           
-          git clone https://github.com/xpirt/img2sdat.git tools/img2sdat
-          
+          # استخراج ملف system.img الأصلي مباشرة
           SYS_IMG=$(find work/extracted -type f -name "system.img" | head -n 1)
           if [ -z "$SYS_IMG" ]; then
             echo "Error: system.img not found!"
             exit 1
           fi
 
-          echo "Processing raw image: $SYS_IMG"
-          img2simg "$SYS_IMG" work/system_sparse.img
-          
-          python3.10 tools/img2sdat/img2sdat.py work/system_sparse.img -o work/flashable -v 4 -p system
-          rm -f work/system_sparse.img
+          mv "$SYS_IMG" work/flashable/system.img
 
-          brotli -q 6 work/flashable/system.new.dat -o work/flashable/system.new.dat.br
-          rm -f work/flashable/system.new.dat
-
-      - name: 5. Create Safe TWRP Flashable Structure
-        run: |
-          wget -O work/flashable/META-INF/com/google/android/update-binary https://raw.githubusercontent.com/osm0sis/AnyKernel3/master/META-INF/com/google/android/update-binary
-          
-          # سكريبت متوافق تماماً مع أقسام سامسونج الديناميكية لـ A04
+          # كتابة سكريبت تفليش مباشر ومبسط يتجاوز مشاكل الـ Unzip ويعتمد على تفليش الصورة مباشرة
           cat << 'EOF' > work/flashable/META-INF/com/google/android/updater-script
           ui_print("========================================");
-          ui_print("  Installing XGSI for Galaxy A04        ");
+          ui_print("  Direct Flashing system.img for A04    ");
           ui_print("========================================");
           ui_print("Unmounting system...");
           run_program("/sbin/sh", "-c", "umount /system_root || umount /system || true");
-          ui_print("Flashing system.new.dat.br to mapper/system...");
-          block_image_update(map_partition("system"), package_extract_file("system.transfer.list"), "system.new.dat.br", "system.patch.dat") || abort("E1001: Failed to update system image.");
-          ui_print("Installation complete!");
+          ui_print("Flashing system.img directly to block...");
+          package_extract_file("system.img", "/dev/block/mapper/system");
+          ui_print("Flashing completed successfully!");
+          ui_print("Please wipe data/factory reset if needed.");
           EOF
 
-      - name: 6. Pack to Standard ZIP and Split into 7z Parts
+          # تحميل update-binary موثوق ومتوافق
+          wget -O work/flashable/META-INF/com/google/android/update-binary https://raw.githubusercontent.com/osm0sis/AnyKernel3/master/META-INF/com/google/android/update-binary
+
+      - name: 5. Pack to ZIP and Split for GitHub Limit
         run: |
           cd work/flashable
-          # استخدام ضغط ZIP القياسي (بدون خيار -0 لتفادي خطأ Unzip failed في TWRP)
-          zip -r -y ../XGSI_GalaxyA04_TWRP.zip .
+          # ضغط مباشر بضغط عادي ومتوافق مع الريكفري
+          zip -r9 ../XGSI_GalaxyA04_Direct.zip system.img META-INF
           cd ..
-          rm -rf flashable extracted tools
+          rm -rf flashable extracted
           
-          # تقسيم الأرشيف بأمان لتجاوز حد 2 جيجابايت في GitHub Releases
-          7z a -t7z -m0=lzma2 -mx=9 -mfb=64 -md=32m -ms=on XGSI_GalaxyA04_TWRP_split.7z XGSI_GalaxyA04_TWRP.7z || true
-          7z a -t7z -m0=lzma2 -mx=9 -mfb=64 -md=32m -ms=on -v1900m XGSI_GalaxyA04_TWRP_final.7z XGSI_GalaxyA04_TWRP.zip
-          rm -f XGSI_GalaxyA04_TWRP.7z XGSI_GalaxyA04_TWRP.zip
-          ls -lh XGSI_GalaxyA04_TWRP_final.7z.*
+          # ضغط وتقسيم بـ 7z لتجاوز حد الـ 2 جيجابايت للرفع في Releases
+          7z a -t7z -m0=lzma2 -mx=9 -mfb=64 -md=32m -ms=on -v1900m XGSI_GalaxyA04_Direct.7z XGSI_GalaxyA04_Direct.zip
+          rm -f XGSI_GalaxyA04_Direct.zip
+          ls -lh XGSI_GalaxyA04_Direct.7z.*
 
-      - name: 7. Upload Split Files to GitHub Releases
+      - name: 6. Upload to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: build-a04-fix-${{ github.run_number }}
-          name: "XGSI Galaxy A04 Fixed ZIP (${{ github.run_number }})"
-          files: work/XGSI_GalaxyA04_TWRP_final.7z.*
+          tag_name: build-a04-direct-${{ github.run_number }}
+          name: "XGSI Galaxy A04 Direct Flash (${{ github.run_number }})"
+          files: work/XGSI_GalaxyA04_Direct.7z.*
