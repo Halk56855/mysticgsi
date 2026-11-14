@@ -1,4 +1,4 @@
-name: Convert XGSI for Galaxy A04 (Final Corrected Split)
+name: Convert XGSI for Galaxy A04 (TWRP Compatible ZIP)
 
 on:
   workflow_dispatch:
@@ -59,43 +59,42 @@ jobs:
           python3.10 tools/img2sdat/img2sdat.py work/system_sparse.img -o work/flashable -v 4 -p system
           rm -f work/system_sparse.img
 
-          brotli -q 9 work/flashable/system.new.dat -o work/flashable/system.new.dat.br
+          brotli -q 6 work/flashable/system.new.dat -o work/flashable/system.new.dat.br
           rm -f work/flashable/system.new.dat
 
-      - name: 5. Create TWRP Flashable Structure for Galaxy A04
+      - name: 5. Create Safe TWRP Flashable Structure
         run: |
           wget -O work/flashable/META-INF/com/google/android/update-binary https://raw.githubusercontent.com/osm0sis/AnyKernel3/master/META-INF/com/google/android/update-binary
           
+          # سكريبت متوافق تماماً مع أقسام سامسونج الديناميكية لـ A04
           cat << 'EOF' > work/flashable/META-INF/com/google/android/updater-script
           ui_print("========================================");
           ui_print("  Installing XGSI for Galaxy A04        ");
           ui_print("========================================");
-          ui_print("Unmounting system if mounted...");
+          ui_print("Unmounting system...");
           run_program("/sbin/sh", "-c", "umount /system_root || umount /system || true");
           ui_print("Flashing system.new.dat.br to mapper/system...");
-          block_image_update("/dev/block/mapper/system", package_extract_file("system.transfer.list"), "system.new.dat.br", "system.patch.dat") || abort("E1001: Failed to update /dev/block/mapper/system.");
-          ui_print("Installation complete! Wipe Data/Format Data if first install.");
+          block_image_update(map_partition("system"), package_extract_file("system.transfer.list"), "system.new.dat.br", "system.patch.dat") || abort("E1001: Failed to update system image.");
+          ui_print("Installation complete!");
           EOF
 
-      - name: 6. Pack to ZIP and Correctly Split 7z Parts
+      - name: 6. Pack to Standard ZIP and Split into 7z Parts
         run: |
           cd work/flashable
-          zip -r0 ../XGSI_GalaxyA04_TWRP.zip .
+          # استخدام ضغط ZIP القياسي (بدون خيار -0 لتفادي خطأ Unzip failed في TWRP)
+          zip -r -y ../XGSI_GalaxyA04_TWRP.zip .
           cd ..
           rm -rf flashable extracted tools
           
-          # ضغط الملف بـ 7z أولاً كملف واحد متصل
-          7z a -t7z -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on XGSI_GalaxyA04_TWRP.7z XGSI_GalaxyA04_TWRP.zip
-          rm -f XGSI_GalaxyA04_TWRP.zip
-          
-          # تقسيم الملف الناتج بشكل صحيح إلى أجزاء بحجم 1.9 جيجابايت
-          7z a -v1900m XGSI_GalaxyA04_TWRP_split.7z XGSI_GalaxyA04_TWRP.7z
-          rm -f XGSI_GalaxyA04_TWRP.7z
-          ls -lh XGSI_GalaxyA04_TWRP_split.7z.*
+          # تقسيم الأرشيف بأمان لتجاوز حد 2 جيجابايت في GitHub Releases
+          7z a -t7z -m0=lzma2 -mx=9 -mfb=64 -md=32m -ms=on XGSI_GalaxyA04_TWRP_split.7z XGSI_GalaxyA04_TWRP.7z || true
+          7z a -t7z -m0=lzma2 -mx=9 -mfb=64 -md=32m -ms=on -v1900m XGSI_GalaxyA04_TWRP_final.7z XGSI_GalaxyA04_TWRP.zip
+          rm -f XGSI_GalaxyA04_TWRP.7z XGSI_GalaxyA04_TWRP.zip
+          ls -lh XGSI_GalaxyA04_TWRP_final.7z.*
 
       - name: 7. Upload Split Files to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: build-a04-${{ github.run_number }}
-          name: "XGSI Galaxy A04 TWRP (Split Parts - ${{ github.run_number }})"
-          files: work/XGSI_GalaxyA04_TWRP_split.7z.*
+          tag_name: build-a04-fix-${{ github.run_number }}
+          name: "XGSI Galaxy A04 Fixed ZIP (${{ github.run_number }})"
+          files: work/XGSI_GalaxyA04_TWRP_final.7z.*
