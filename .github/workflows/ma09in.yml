@@ -1,7 +1,7 @@
 name: Build Halium 14 for Samsung A04
 
 on:
-  workflow_dispatch: # يتيح لك تشغيل البناء يدويًا من تبويب Actions
+  workflow_dispatch:
 
 jobs:
   build:
@@ -10,7 +10,7 @@ jobs:
       - name: Maximize build space
         uses: easimon/maximize-build-space@master
         with:
-          root-reserve-mb: 10240
+          root-reserve-mb: 2048
           swap-size-mb: 16384
           remove-dotnet: 'true'
           remove-android: 'true'
@@ -28,22 +28,24 @@ jobs:
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "actions@github.com"
 
-      - name: Init Repo & Sync Halium 14.0
+      - name: Init Repo & Sync Halium 14.0 (on /mnt)
         run: |
-          mkdir -p ~/halium-14 && cd ~/halium-14
+          sudo mkdir -p /mnt/halium-14
+          sudo chown -R $USER:$USER /mnt/halium-14
+          cd /mnt/halium-14
           repo init -u https://github.com/Halium/android.git -b halium-14.0 --depth=1
           repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
 
       - name: Clone Device, Vendor, and Kernel Repositories
         run: |
-          cd ~/halium-14
+          cd /mnt/halium-14
           git clone https://github.com/juanes10201/android_device_samsung_a04.git device/samsung/a04
           git clone https://github.com/juanes10201/android_vendor_samsung_a04.git vendor/samsung/a04
           git clone https://github.com/juanes10201/kernel-samsung-a04.git kernel/samsung/a04
 
       - name: Apply Hybris Patches
         run: |
-          cd ~/halium-14
+          cd /mnt/halium-14
           git clone https://github.com/Halium/hybris-patches.git
           cd hybris-patches
           ./apply-patches.sh --mb
@@ -51,7 +53,7 @@ jobs:
 
       - name: Start Compilation
         run: |
-          cd ~/halium-14
+          cd /mnt/halium-14
           source build/envsetup.sh
           breakfast a04
           mka halium-boot
@@ -62,5 +64,5 @@ jobs:
         with:
           name: halium-samsung-a04-images
           path: |
-            ~/halium-14/out/target/product/a04/halium-boot.img
-            ~/halium-14/out/target/product/a04/system.img
+            /mnt/halium-14/out/target/product/a04/halium-boot.img
+            /mnt/halium-14/out/target/product/a04/system.img
