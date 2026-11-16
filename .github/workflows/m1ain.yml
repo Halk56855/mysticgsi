@@ -68,16 +68,15 @@ jobs:
             <project name="A04-Trees-and-ROMs/android_kernel_samsung_a04" path="kernel/samsung/a04" remote="github" revision="lineage-22.2" />
             <project name="A04-Trees-and-ROMs/android_vendor_samsung_a04" path="vendor/samsung/a04" remote="github" revision="lineage-22.2" />
             
-            <!-- استبعاد المجلدات الثقيلة التي تستهلك المساحة وتسبب امتلاء القرص -->
+            <!-- استبعاد المجلدات الثقيلة لتوفير مساحة القرص -->
             <remove-project name="platform/prebuilts/rust" />
             <remove-project name="platform/prebuilts/clang/host/linux-x86" />
           </manifest>
           EOF
           
-          # مزامنة سريعة مع تخطي العلامات والنسخ الكامل
           repo sync -c -j4 --no-clone-bundle --optimized-fetch --prune --no-tags
 
-      - name: Precise Python Parser to Clean Vendor and System Android.bp
+      - name: Fast & Precise Python Parser to Clean Vendor and System Android.bp
         run: |
           cd halium
           rm -rf device/google/cuttlefish
@@ -87,6 +86,7 @@ jobs:
           python3 - << 'EOF'
           import os, glob, re
 
+          # 1. تنظيف ملف vendor Android.bp وإزالة الوحدات المتعارضة
           bp_path = "vendor/samsung/a04/Android.bp"
           if os.path.exists(bp_path):
               with open(bp_path, "r", encoding="utf-8") as f:
@@ -132,19 +132,24 @@ jobs:
 
               with open(bp_path, "w", encoding="utf-8") as f:
                   f.write(text)
+              print("Vendor Android.bp cleaned successfully.")
 
-          for bp_file in glob.glob("**/Android.bp", recursive=True):
-              try:
-                  with open(bp_file, "r", encoding="utf-8") as f:
-                      content = f.read()
-                  if "com.android.virt" in content:
-                      content = re.sub(r',\s*"com.android.virt"', '', content)
-                      content = re.sub(r'"com.android.virt"\s*,', '', content)
-                      content = re.sub(r'"com.android.virt"', '', content)
-                      with open(bp_file, "w", encoding="utf-8") as f:
-                          f.write(content)
-              except Exception as e:
-                  pass
+          # 2. البحث السريع في المجلدات المستهدفة فقط لتجنب التعليق وإزالة com.android.virt بأمان
+          search_dirs = ["vendor", "device", "external/e2fsprogs"]
+          for s_dir in search_dirs:
+              for bp_file in glob.glob(f"{s_dir}/**/Android.bp", recursive=True):
+                  try:
+                      with open(bp_file, "r", encoding="utf-8") as f:
+                          content = f.read()
+                      if "com.android.virt" in content:
+                          content = re.sub(r',\s*"com.android.virt"', '', content)
+                          content = re.sub(r'"com.android.virt"\s*,', '', content)
+                          content = re.sub(r'"com.android.virt"', '', content)
+                          with open(bp_file, "w", encoding="utf-8") as f:
+                              f.write(content)
+                  except Exception as e:
+                      pass
+          print("All com.android.virt references cleaned safely.")
           EOF
 
       - name: Build System Image (Halium 14)
