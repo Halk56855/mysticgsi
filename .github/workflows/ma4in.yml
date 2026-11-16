@@ -16,7 +16,7 @@ on:
 
 jobs:
   build-port:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-25.04
 
     steps:
       - name: Checkout Repository
