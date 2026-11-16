@@ -1,0 +1,111 @@
+name: Build HyperOS Port ROM for Galaxy A04
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_rom_url:
+        description: 'رابط الروم الرسمي الأساسي لهاتف Samsung Galaxy A04 (Base ROM)'
+        required: true
+        default: 'https://drive.usercontent.google.com/download?id=1Wn4asCAPGMd09FUOsko8DHkqQ-834gZA&export=download&authuser=0&confirm=t&uuid=9752b91e-168d-4ebe-9c3f-89cff79a63b9&at=AMrWOn1mYXUMi3TgqHZEuEIw9zqM%3A1794841933571'
+        type: string
+      port_rom_url:
+        description: 'رابط روم شاومي HyperOS (Port ROM)'
+        required: true
+        default: 'https://bigota.d.miui.com/V816.0.4.0.UGRMIXM/blue_global_images_V816.0.4.0.UGRMIXM_20240312.0000.00_14.0_d53ed3c01a.tgz'
+        type: string
+
+jobs:
+  build-port:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Maximize Build Disk Space
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 512
+          swap-size-mb: 2048
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+          remove-codeql: 'true'
+
+      - name: Set up Environment & Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git wget curl python3 python3-pip \
+            cpio aria2 zip unzip lz4 zstd e2fsprogs \
+            build-essential libssl-dev liblz4-tool
+          
+          pip3 install gdown
+          
+          # تثبيت أدوات فك وتجميع الأقسام الديناميكية
+          git clone https://github.com/AndroidPorting/PortTools.git ~/PortTools
+          chmod +x ~/PortTools/*.sh
+
+      - name: Download Base (Galaxy A04) and Port (HyperOS) ROMs
+        run: |
+          mkdir -p workspace/base workspace/port workspace/output
+          
+          echo "Downloading Base ROM (Galaxy A04) from Google Drive..."
+          gdown --fuzzy "${{ github.event.inputs.base_rom_url }}" -O workspace/base_rom.zip
+          
+          echo "Downloading Port ROM (HyperOS) from Xiaomi..."
+          aria2c -c -x16 -s16 "${{ github.event.inputs.port_rom_url }}" -o workspace/port_rom.tgz
+
+      - name: Extract Firmware Images
+        run: |
+          cd workspace
+          echo "Extracting Base and Port ROM files..."
+          mkdir -p base_extracted port_extracted
+          
+          # فك ضغط روم سامسونج (.zip أو .tar)
+          unzip -q base_rom.zip -d base_extracted/ || tar -xf base_rom.zip -C base_extracted/
+          
+          # فك ضغط روم شاومي (.tgz)
+          tar -xzf port_rom.tgz -C port_extracted/
+          
+          # استخراج أقسام النظام والعتاد
+          python3 ~/PortTools/extract.py base_extracted/ base/
+          python3 ~/PortTools/extract.py port_extracted/ port/
+
+      - name: Process and Merge Port to Base
+        run: |
+          cd workspace
+          echo "Merging Vendor/Boot (Galaxy A04) with System (HyperOS)..."
+          
+          python3 ~/PortTools/merge.py \
+            --base base/ \
+            --port port/ \
+            --output output/ \
+            --device "A045F"
+
+      - name: Rebuild Super Image (lpmake)
+        run: |
+          cd workspace/output
+          echo "Rebuilding super.img for Galaxy A04 partition limits..."
+          
+          ~/PortTools/lpmake \
+            --device-size 4294967296 \
+            --metadata-size 65536 \
+            --metadata-slots 3 \
+            --device super:3221225472 \
+            --group main_group:3221225472 \
+            --partition system:readonly:2147483648:main_group \
+            --partition vendor:readonly:1073741824:main_group \
+            --output super.img
+
+      - name: Compress Final ROM Package
+        run: |
+          cd workspace/output
+          tar -cvf Galaxy-A04-HyperOS-Port.tar super.img
+          gzip Galaxy-A04-HyperOS-Port.tar
+
+      - name: Upload Final ROM Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Galaxy-A04-HyperOS-Port-ROM
+          path: workspace/output/Galaxy-A04-HyperOS-Port.tar.gz
