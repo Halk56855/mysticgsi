@@ -35,15 +35,16 @@ jobs:
       - name: Set up Environment & Built-in Partition Tools
         run: |
           sudo apt-get update
+          # تم إزالة الحزمة القديمة وتحديثها لتعمل مع ubuntu-latest
           sudo apt-get install -y \
             git wget curl python3 python3-pip \
             cpio aria2 zip unzip lz4 zstd e2fsprogs \
             android-sdk-libsparse-utils erofs-utils \
-            build-essential libssl-dev liblz4-tool
+            build-essential libssl-dev liblz4-1
           
-          pip3 install gdown
+          pip3 install gdown --break-system-packages || pip3 install gdown
           
-          # تحميل أدوات lpunpack و lpmake الجاهزة والمفتوحة المصدر مباشرة
+          # تحميل أدوات lpunpack و lpmake الجاهزة
           mkdir -p ~/bin
           wget -q https://github.com/LonelyFool/lpunpack_and_lpmake/releases/download/v1.0/lpunpack_and_lpmake_x86_64.zip -O ~/lp_tools.zip
           unzip -q ~/lp_tools.zip -d ~/bin/
@@ -71,23 +72,19 @@ jobs:
           echo "Extracting Port ROM..."
           tar -xzf port_rom.tgz -C port_extracted/
           
-          # فك ضغط ملف AP في روم سامسونج للحصول على super.img
           AP_FILE=$(find base_extracted/ -name "AP_*.tar*" | head -n 1)
           if [ -n "$AP_FILE" ]; then
             tar -xf "$AP_FILE" -C base_extracted/
           fi
           
-          # تحويل super.img.lz4 أو sparse super.img إلى raw image لسامسونج
           if [ -f base_extracted/super.img.lz4 ]; then
             lz4 -d base_extracted/super.img.lz4 base/super_raw.img
           elif [ -f base_extracted/super.img ]; then
             simg2img base_extracted/super.img base/super_raw.img || cp base_extracted/super.img base/super_raw.img
           fi
           
-          # استخراج أقسام سامسونج (للحصول على vendor و odm)
           lpunpack base/super_raw.img base/
           
-          # تحويل super.img في روم شاومي إلى raw image واستخراج system و product
           PORT_SUPER=$(find port_extracted/ -name "super.img" | head -n 1)
           simg2img "$PORT_SUPER" port/super_raw.img || cp "$PORT_SUPER" port/super_raw.img
           lpunpack port/super_raw.img port/
@@ -97,11 +94,9 @@ jobs:
           cd workspace
           echo "Organizing Base Vendor/ODM and Port System/Product..."
           
-          # نسخ أقسام العتاد من سامسونج A04
           cp base/vendor*.img output/vendor.img
           cp base/odm*.img output/odm.img || true
           
-          # نسخ أقسام النظام من شاومي HyperOS
           cp port/system*.img output/system.img
           cp port/product*.img output/product.img || true
           
@@ -120,7 +115,6 @@ jobs:
           TOTAL_USED=$((SYS_SIZE + VEN_SIZE + PROD_SIZE + ODM_SIZE))
           echo "Total partitions size: $TOTAL_USED bytes"
           
-          # بناء super.img بحجم ديناميكي يتناسب مع أقسام A04 (4.5 GB)
           lpmake \
             --device-size 4831838208 \
             --metadata-size 65536 \
