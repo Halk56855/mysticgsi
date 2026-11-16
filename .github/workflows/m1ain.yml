@@ -55,7 +55,7 @@ jobs:
           git config --global user.name "Halium Builder"
           git config --global user.email "builder@halium.org"
 
-      - name: Initialize Repo and Add Device Manifest (Excluding Rust Completely)
+      - name: Initialize Repo and Add Device Manifest (Proper Integration)
         run: |
           mkdir halium && cd halium
           repo init -u https://github.com/Halium/android -b halium-14.0 --depth=1
@@ -64,30 +64,18 @@ jobs:
           cat << 'EOF' > .repo/local_manifests/a04.xml
           <?xml version="1.0" encoding="UTF-8"?>
           <manifest>
+            <!-- تعريف شجرة الجهاز والنواة والمورد مباشرة في الـ manifest لضمان قراءة ملفات الـ lunch والـ vendorsetup -->
             <project name="A04-Trees-and-ROMs/android_device_samsung_a04" path="device/samsung/a04" remote="github" revision="lineage-22.2" />
             <project name="A04-Trees-and-ROMs/android_kernel_samsung_a04" path="kernel/samsung/a04" remote="github" revision="lineage-22.2" />
             <project name="A04-Trees-and-ROMs/android_vendor_samsung_a04" path="vendor/samsung/a04" remote="github" revision="lineage-22.2" />
             
-            <!-- إزالة وحظر تحميل prebuilts/rust نهائياً لتوفير مساحة القرص -->
+            <!-- إزالة ومحاربة المجلدات الثقيلة لتوفير مساحة القرص -->
             <remove-project name="platform/prebuilts/rust" />
             <remove-project name="platform/prebuilts/clang/host/linux-x86" />
           </manifest>
           EOF
           
-          # مزامنة بدون علامات وبأقل استهلاك للمساحة
           repo sync -c -j4 --no-clone-bundle --optimized-fetch --prune --no-tags
-
-      - name: Clone Device Trees Manually for Lineage 22.2
-        run: |
-          cd halium
-          mkdir -p device/samsung kernel/samsung vendor/samsung
-          
-          # مسح أي مسارات قديمة إن وجدت لضمان نظافة المستودع
-          rm -rf device/samsung/a04 kernel/samsung/a04 vendor/samsung/a04
-          
-          git clone https://github.com/A04-Trees-and-ROMs/android_device_samsung_a04.git -b lineage-22.2 device/samsung/a04
-          git clone https://github.com/A04-Trees-and-ROMs/android_kernel_samsung_a04.git -b lineage-22.2 kernel/samsung/a04 || git clone https://github.com/A04-Trees-and-ROMs/android_kernel_samsung_a04.git kernel/samsung/a04
-          git clone https://github.com/A04-Trees-and-ROMs/android_vendor_samsung_a04.git -b lineage-22.2 vendor/samsung/a04 || git clone https://github.com/A04-Trees-and-ROMs/android_vendor_samsung_a04.git vendor/samsung/a04
 
       - name: Fast & Precise Python Parser to Clean Vendor and System Android.bp
         run: |
