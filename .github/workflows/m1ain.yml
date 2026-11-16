@@ -55,9 +55,10 @@ jobs:
           git config --global user.name "Halium Builder"
           git config --global user.email "builder@halium.org"
 
-      - name: Initialize Repo and Add Device Manifest (Halium 14)
+      - name: Initialize Repo and Add Device Manifest (Optimized Sync)
         run: |
           mkdir halium && cd halium
+          # استخدام depth=1 لتنزيل أحدث نسخة فقط وتقليل استهلاك المساحة
           repo init -u https://github.com/Halium/android -b halium-14.0 --depth=1
           
           mkdir -p .repo/local_manifests
@@ -70,7 +71,8 @@ jobs:
           </manifest>
           EOF
           
-          repo sync -c -j4 --no-clone-bundle --optimized-fetch --prune
+          # استخدام خيارات تحسين المساحة والتخطي في repo sync
+          repo sync -c -j4 --no-clone-bundle --optimized-fetch --prune --no-tags
 
       - name: Precise Python Parser to Clean Vendor and System Android.bp
         run: |
