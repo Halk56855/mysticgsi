@@ -32,70 +32,106 @@ jobs:
           remove-haskell: 'true'
           remove-codeql: 'true'
 
-      - name: Set up Environment & Tools
+      - name: Set up Environment & Built-in Partition Tools
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             git wget curl python3 python3-pip \
             cpio aria2 zip unzip lz4 zstd e2fsprogs \
+            android-sdk-libsparse-utils erofs-utils \
             build-essential libssl-dev liblz4-tool
           
           pip3 install gdown
           
-          # تثبيت أدوات فك وتجميع الأقسام الديناميكية
-          git clone https://github.com/AndroidPorting/PortTools.git ~/PortTools
-          chmod +x ~/PortTools/*.sh
+          # تحميل أدوات lpunpack و lpmake الجاهزة والمفتوحة المصدر مباشرة
+          mkdir -p ~/bin
+          wget -q https://github.com/LonelyFool/lpunpack_and_lpmake/releases/download/v1.0/lpunpack_and_lpmake_x86_64.zip -O ~/lp_tools.zip
+          unzip -q ~/lp_tools.zip -d ~/bin/
+          chmod +x ~/bin/*
+          echo "$HOME/bin" >> $GITHUB_PATH
 
       - name: Download Base (Galaxy A04) and Port (HyperOS) ROMs
         run: |
           mkdir -p workspace/base workspace/port workspace/output
           
-          echo "Downloading Base ROM (Galaxy A04) from Google Drive..."
+          echo "Downloading Base ROM (Galaxy A04)..."
           gdown --fuzzy "${{ github.event.inputs.base_rom_url }}" -O workspace/base_rom.zip
           
-          echo "Downloading Port ROM (HyperOS) from Xiaomi..."
+          echo "Downloading Port ROM (HyperOS)..."
           aria2c -c -x16 -s16 "${{ github.event.inputs.port_rom_url }}" -o workspace/port_rom.tgz
 
       - name: Extract Firmware Images
         run: |
           cd workspace
-          echo "Extracting Base and Port ROM files..."
           mkdir -p base_extracted port_extracted
           
-          # فك ضغط روم سامسونج (.zip أو .tar)
+          echo "Extracting Base ROM..."
           unzip -q base_rom.zip -d base_extracted/ || tar -xf base_rom.zip -C base_extracted/
           
-          # فك ضغط روم شاومي (.tgz)
+          echo "Extracting Port ROM..."
           tar -xzf port_rom.tgz -C port_extracted/
           
-          # استخراج أقسام النظام والعتاد
-          python3 ~/PortTools/extract.py base_extracted/ base/
-          python3 ~/PortTools/extract.py port_extracted/ port/
+          # فك ضغط ملف AP في روم سامسونج للحصول على super.img
+          AP_FILE=$(find base_extracted/ -name "AP_*.tar*" | head -n 1)
+          if [ -n "$AP_FILE" ]; then
+            tar -xf "$AP_FILE" -C base_extracted/
+          fi
+          
+          # تحويل super.img.lz4 أو sparse super.img إلى raw image لسامسونج
+          if [ -f base_extracted/super.img.lz4 ]; then
+            lz4 -d base_extracted/super.img.lz4 base/super_raw.img
+          elif [ -f base_extracted/super.img ]; then
+            simg2img base_extracted/super.img base/super_raw.img || cp base_extracted/super.img base/super_raw.img
+          fi
+          
+          # استخراج أقسام سامسونج (للحصول على vendor و odm)
+          lpunpack base/super_raw.img base/
+          
+          # تحويل super.img في روم شاومي إلى raw image واستخراج system و product
+          PORT_SUPER=$(find port_extracted/ -name "super.img" | head -n 1)
+          simg2img "$PORT_SUPER" port/super_raw.img || cp "$PORT_SUPER" port/super_raw.img
+          lpunpack port/super_raw.img port/
 
-      - name: Process and Merge Port to Base
+      - name: Prepare Partitions for Merging
         run: |
           cd workspace
-          echo "Merging Vendor/Boot (Galaxy A04) with System (HyperOS)..."
+          echo "Organizing Base Vendor/ODM and Port System/Product..."
           
-          python3 ~/PortTools/merge.py \
-            --base base/ \
-            --port port/ \
-            --output output/ \
-            --device "A045F"
+          # نسخ أقسام العتاد من سامسونج A04
+          cp base/vendor*.img output/vendor.img
+          cp base/odm*.img output/odm.img || true
+          
+          # نسخ أقسام النظام من شاومي HyperOS
+          cp port/system*.img output/system.img
+          cp port/product*.img output/product.img || true
+          
+          ls -lh output/
 
       - name: Rebuild Super Image (lpmake)
         run: |
           cd workspace/output
-          echo "Rebuilding super.img for Galaxy A04 partition limits..."
+          echo "Calculating partition sizes and rebuilding super.img..."
           
-          ~/PortTools/lpmake \
-            --device-size 4294967296 \
+          SYS_SIZE=$(stat -c%s system.img)
+          VEN_SIZE=$(stat -c%s vendor.img)
+          PROD_SIZE=$([ -f product.img ] && stat -c%s product.img || echo 0)
+          ODM_SIZE=$([ -f odm.img ] && stat -c%s odm.img || echo 0)
+          
+          TOTAL_USED=$((SYS_SIZE + VEN_SIZE + PROD_SIZE + ODM_SIZE))
+          echo "Total partitions size: $TOTAL_USED bytes"
+          
+          # بناء super.img بحجم ديناميكي يتناسب مع أقسام A04 (4.5 GB)
+          lpmake \
+            --device-size 4831838208 \
             --metadata-size 65536 \
-            --metadata-slots 3 \
-            --device super:3221225472 \
-            --group main_group:3221225472 \
-            --partition system:readonly:2147483648:main_group \
-            --partition vendor:readonly:1073741824:main_group \
+            --metadata-slots 2 \
+            --device super:4831838208 \
+            --group main:4831838208 \
+            --partition system:readonly:$SYS_SIZE:main --image system=system.img \
+            --partition vendor:readonly:$VEN_SIZE:main --image vendor=vendor.img \
+            $([ -f product.img ] && echo "--partition product:readonly:$PROD_SIZE:main --image product=product.img") \
+            $([ -f odm.img ] && echo "--partition odm:readonly:$ODM_SIZE:main --image odm=odm.img") \
+            --sparse \
             --output super.img
 
       - name: Compress Final ROM Package
