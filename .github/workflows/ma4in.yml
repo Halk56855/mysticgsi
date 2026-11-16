@@ -39,14 +39,24 @@ jobs:
             git wget curl python3 python3-requests \
             cpio aria2 zip unzip lz4 zstd e2fsprogs \
             android-sdk-libsparse-utils erofs-utils \
-            build-essential libssl-dev liblz4-1
+            build-essential libssl-dev liblz4-1 || true
           
-          # تجهيز أدوات فك وتجميع الأقسام
+          # تجهيز أدوات فك وتجميع الأقسام مع مصادر بديلة آمنة
           mkdir -p ~/bin
-          wget -q https://github.com/LonelyFool/lpunpack_and_lpmake/releases/download/v1.0/lpunpack_and_lpmake_x86_64.zip -O ~/lp_tools.zip
-          unzip -q ~/lp_tools.zip -d ~/bin/
+          echo "Downloading partition tools..."
+          
+          wget -q https://github.com/xiaoxindada/mobile_tools/raw/main/lpunpack -O ~/bin/lpunpack || true
+          wget -q https://github.com/xiaoxindada/mobile_tools/raw/main/lpmake -O ~/bin/lpmake || true
+          
+          if [ ! -f ~/bin/lpunpack ] || [ ! -f ~/bin/lpmake ]; then
+            curl -sL https://github.com/LonelyFool/lpunpack_and_lpmake/releases/download/v1.0/lpunpack_and_lpmake_x86_64.zip -o ~/lp_tools.zip
+            unzip -q ~/lp_tools.zip -d ~/bin/ || true
+          fi
+          
           chmod +x ~/bin/*
           echo "$HOME/bin" >> $GITHUB_PATH
+          which lpunpack && echo "lpunpack ready"
+          which lpmake && echo "lpmake ready"
 
       - name: Download Base (Galaxy A04) and Port (HyperOS) ROMs
         run: |
