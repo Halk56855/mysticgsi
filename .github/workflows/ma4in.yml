@@ -1,54 +1,86 @@
-name: Full Port ROM Builder for Galaxy A04 (HyperOS / Android 14)
+name: Build HyperOS Port ROM for Galaxy A04
 
 on:
   workflow_dispatch:
     inputs:
       base_rom_url:
-        description: 'رابط تحميل الروم الرسمي الأساسي لهاتف A04 (Base ROM .zip/.tar)'
+        description: 'رابط الروم الرسمي الأساسي لهاتف Samsung Galaxy A04 (Base ROM)'
         required: true
+        default: 'https://drive.usercontent.google.com/download?id=1Wn4asCAPGMd09FUOsko8DHkqQ-834gZA&export=download&authuser=0&confirm=t&uuid=9752b91e-168d-4ebe-9c3f-89cff79a63b9&at=AMrWOn1mYXUMi3TgqHZEuEIw9zqM%3A1794841933571'
         type: string
       port_rom_url:
-        description: 'رابط تحميل الروم المنقول (Port ROM - HyperOS)'
+        description: 'رابط روم شاومي HyperOS (Port ROM)'
         required: true
         default: 'https://bigota.d.miui.com/V816.0.4.0.UGRMIXM/blue_global_images_V816.0.4.0.UGRMIXM_20240312.0000.00_14.0_d53ed3c01a.tgz'
         type: string
 
 jobs:
   build-port:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Maximize Build Disk Space
-        uses: easimon/maximize-build-space@master
-        with:
-          root-reserve-mb: 512
-          swap-size-mb: 2048
-          remove-dotnet: 'true'
-          remove-android: 'true'
-          remove-haskell: 'true'
-          remove-codeql: 'true'
+      - name: Free Disk Space (Aggressive Cleanup)
+        run: |
+          echo "=== Freeing up disk space before build ==="
+          df -h
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /usr/share/swift
+          sudo rm -rf /usr/local/.ghcup
+          sudo rm -rf /opt/hostedtoolcache
+          sudo docker image prune -a --force
+          sudo apt-get clean
+          echo "=== Disk space after cleanup ==="
+          df -h
 
       - name: Set up Environment & Tools
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            git wget curl python3 python3-pip \
+            git wget curl python3 python3-requests \
             cpio aria2 zip unzip lz4 zstd e2fsprogs \
-            build-essential libssl-dev liblz4-tool
+            android-sdk-libsparse-utils erofs-utils \
+            build-essential libssl-dev liblz4-1 || true
           
-          # تثبيت أدوات فك وتجميع الأقسام الديناميكية
-          git clone https://github.com/AndroidPorting/PortTools.git ~/PortTools
-          chmod +x ~/PortTools/*.sh
+          mkdir -p ~/bin
+          echo "Downloading partition tools..."
+          
+          wget -q https://github.com/xiaoxindada/mobile_tools/raw/main/lpunpack -O ~/bin/lpunpack || true
+          wget -q https://github.com/xiaoxindada/mobile_tools/raw/main/lpmake -O ~/bin/lpmake || true
+          
+          if [ ! -f ~/bin/lpunpack ] || [ ! -f ~/bin/lpmake ]; then
+            curl -sL https://github.com/LonelyFool/lpunpack_and_lpmake/releases/download/v1.0/lpunpack_and_lpmake_x86_64.zip -o ~/lp_tools.zip
+            unzip -q ~/lp_tools.zip -d ~/bin/ || true
+          fi
+          
+          chmod +x ~/bin/*
+          echo "$HOME/bin" >> $GITHUB_PATH
+          which lpunpack && echo "lpunpack ready"
+          which lpmake && echo "lpmake ready"
 
-      - name: Download ROMs (Base & Port)
+      - name: Download Base (Galaxy A04) and Port (HyperOS) ROMs
         run: |
           mkdir -p workspace/base workspace/port workspace/output
           
-          echo "Downloading Base ROM (Galaxy A04)..."
-          aria2c -c -x16 -s16 "${{ github.event.inputs.base_rom_url }}" -o workspace/base_rom.zip
+          echo "Downloading Base ROM (Galaxy A04) via Python Direct Script..."
+          python3 -c "
+          import requests
+          url = 'https://docs.google.com/uc?export=download'
+          file_id = '1Wn4asCAPGMd09FUOsko8DHkqQ-834gZA'
+          session = requests.Session()
+          response = session.get(url, params={'id': file_id}, stream=True)
+          token = next((v for k, v in response.cookies.items() if k.startswith('download_warning')), None)
+          if token:
+              response = session.get(url, params={'id': file_id, 'confirm': token}, stream=True)
+          with open('workspace/base_rom.zip', 'wb') as f:
+              for chunk in response.iter_content(32768):
+                  if chunk:
+                      f.write(chunk)
+          "
           
           echo "Downloading Port ROM (HyperOS)..."
           aria2c -c -x16 -s16 "${{ github.event.inputs.port_rom_url }}" -o workspace/port_rom.tgz
@@ -56,42 +88,59 @@ jobs:
       - name: Extract Firmware Images
         run: |
           cd workspace
-          echo "Extracting Base and Port ROM files..."
           mkdir -p base_extracted port_extracted
           
-          # فك ضغط الرومات بناءً على صيغتها
+          echo "Extracting Base ROM..."
           unzip -q base_rom.zip -d base_extracted/ || tar -xf base_rom.zip -C base_extracted/
-          tar -xzf port_rom.tgz -C port_extracted/ || unzip -q port_rom.tgz -d port_extracted/
           
-          # تشغيل سكريبت الاستخراج للأقسام
-          python3 ~/PortTools/extract.py base_extracted/ base/
-          python3 ~/PortTools/extract.py port_extracted/ port/
+          echo "Extracting Port ROM..."
+          tar -xzf port_rom.tgz -C port_extracted/
+          
+          AP_FILE=$(find base_extracted/ -name "AP_*.tar*" | head -n 1)
+          if [ -n "$AP_FILE" ]; then
+            tar -xf "$AP_FILE" -C base_extracted/
+          fi
+          
+          if [ -f base_extracted/super.img.lz4 ]; then
+            lz4 -d base_extracted/super.img.lz4 base/super_raw.img
+          elif [ -f base_extracted/super.img ]; then
+            simg2img base_extracted/super.img base/super_raw.img || cp base_extracted/super.img base/super_raw.img
+          fi
+          
+          lpunpack base/super_raw.img base/
+          
+          PORT_SUPER=$(find port_extracted/ -name "super.img" | head -n 1)
+          simg2img "$PORT_SUPER" port/super_raw.img || cp "$PORT_SUPER" port/super_raw.img
+          lpunpack port/super_raw.img port/
 
-      - name: Process and Merge Port to Base
+      - name: Prepare Partitions for Merging
         run: |
           cd workspace
-          echo "Merging Vendor/Boot (A04) with System (HyperOS)..."
+          cp base/vendor*.img output/vendor.img
+          cp base/odm*.img output/odm.img || true
           
-          python3 ~/PortTools/merge.py \
-            --base base/ \
-            --port port/ \
-            --output output/ \
-            --device "A045F"
+          cp port/system*.img output/system.img
+          cp port/product*.img output/product.img || true
 
       - name: Rebuild Super Image (lpmake)
         run: |
           cd workspace/output
-          echo "Rebuilding super.img for Galaxy A04 partition limits..."
+          SYS_SIZE=$(stat -c%s system.img)
+          VEN_SIZE=$(stat -c%s vendor.img)
+          PROD_SIZE=$([ -f product.img ] && stat -c%s product.img || echo 0)
+          ODM_SIZE=$([ -f odm.img ] && stat -c%s odm.img || echo 0)
           
-          # إعادة تجميع الأقسام بالحجم المخصص لهاتف A04 (حد أقصى 4.2GB)
-          ~/PortTools/lpmake \
-            --device-size 4294967296 \
+          lpmake \
+            --device-size 4831838208 \
             --metadata-size 65536 \
-            --metadata-slots 3 \
-            --device super:3221225472 \
-            --group main_group:3221225472 \
-            --partition system:readonly:2147483648:main_group \
-            --partition vendor:readonly:1073741824:main_group \
+            --metadata-slots 2 \
+            --device super:4831838208 \
+            --group main:4831838208 \
+            --partition system:readonly:$SYS_SIZE:main --image system=system.img \
+            --partition vendor:readonly:$VEN_SIZE:main --image vendor=vendor.img \
+            $([ -f product.img ] && echo "--partition product:readonly:$PROD_SIZE:main --image product=product.img") \
+            $([ -f odm.img ] && echo "--partition odm:readonly:$ODM_SIZE:main --image odm=odm.img") \
+            --sparse \
             --output super.img
 
       - name: Compress Final ROM Package
