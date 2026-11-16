@@ -27,10 +27,10 @@ jobs:
           sudo rm -rf /usr/share/swift
           sudo rm -rf /usr/local/julia
           sudo rm -rf /usr/share/miniconda
+          sudo rm -rf /var/lib/apt/lists/*
           
           sudo docker image prune --all --force
           sudo apt-get clean
-          sudo apt-get purge -y azure-cli google-cloud-cli microsoft-edge-stable firefox powershell dotnet-sdk-* || true
 
           echo "=== AFTER CLEANUP ==="
           df -h
@@ -55,10 +55,9 @@ jobs:
           git config --global user.name "Halium Builder"
           git config --global user.email "builder@halium.org"
 
-      - name: Initialize Repo and Add Device Manifest (Optimized Sync)
+      - name: Initialize Repo and Add Device Manifest (With Exclusions)
         run: |
           mkdir halium && cd halium
-          # استخدام depth=1 لتنزيل أحدث نسخة فقط وتقليل استهلاك المساحة
           repo init -u https://github.com/Halium/android -b halium-14.0 --depth=1
           
           mkdir -p .repo/local_manifests
@@ -68,10 +67,14 @@ jobs:
             <project name="A04-Trees-and-ROMs/android_device_samsung_a04" path="device/samsung/a04" remote="github" revision="lineage-22.2" />
             <project name="A04-Trees-and-ROMs/android_kernel_samsung_a04" path="kernel/samsung/a04" remote="github" revision="lineage-22.2" />
             <project name="A04-Trees-and-ROMs/android_vendor_samsung_a04" path="vendor/samsung/a04" remote="github" revision="lineage-22.2" />
+            
+            <!-- استبعاد المجلدات الثقيلة التي تستهلك المساحة وتسبب امتلاء القرص -->
+            <remove-project name="platform/prebuilts/rust" />
+            <remove-project name="platform/prebuilts/clang/host/linux-x86" />
           </manifest>
           EOF
           
-          # استخدام خيارات تحسين المساحة والتخطي في repo sync
+          # مزامنة سريعة مع تخطي العلامات والنسخ الكامل
           repo sync -c -j4 --no-clone-bundle --optimized-fetch --prune --no-tags
 
       - name: Precise Python Parser to Clean Vendor and System Android.bp
