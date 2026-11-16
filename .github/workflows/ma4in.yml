@@ -35,16 +35,18 @@ jobs:
       - name: Set up Environment & Built-in Partition Tools
         run: |
           sudo apt-get update
-          # تم إزالة الحزمة القديمة وتحديثها لتعمل مع ubuntu-latest
           sudo apt-get install -y \
-            git wget curl python3 python3-pip \
+            git wget curl python3 python3-pip python3-venv \
             cpio aria2 zip unzip lz4 zstd e2fsprogs \
             android-sdk-libsparse-utils erofs-utils \
             build-essential libssl-dev liblz4-1
           
-          pip3 install gdown --break-system-packages || pip3 install gdown
+          # إنشاء بيئة افتراضية لتثبيت gdown بعيداً عن قيود النظام
+          python3 -m venv venv
+          ./venv/bin/pip install --upgrade pip
+          ./venv/bin/pip install gdown
+          echo "$PWD/venv/bin" >> $GITHUB_PATH
           
-          # تحميل أدوات lpunpack و lpmake الجاهزة
           mkdir -p ~/bin
           wget -q https://github.com/LonelyFool/lpunpack_and_lpmake/releases/download/v1.0/lpunpack_and_lpmake_x86_64.zip -O ~/lp_tools.zip
           unzip -q ~/lp_tools.zip -d ~/bin/
@@ -56,7 +58,7 @@ jobs:
           mkdir -p workspace/base workspace/port workspace/output
           
           echo "Downloading Base ROM (Galaxy A04)..."
-          gdown --fuzzy "${{ github.event.inputs.base_rom_url }}" -O workspace/base_rom.zip
+          gdown --id "1Wn4asCAPGMd09FUOsko8DHkqQ-834gZA" -O workspace/base_rom.zip || gdown --fuzzy "${{ github.event.inputs.base_rom_url }}" -O workspace/base_rom.zip
           
           echo "Downloading Port ROM (HyperOS)..."
           aria2c -c -x16 -s16 "${{ github.event.inputs.port_rom_url }}" -o workspace/port_rom.tgz
@@ -92,28 +94,19 @@ jobs:
       - name: Prepare Partitions for Merging
         run: |
           cd workspace
-          echo "Organizing Base Vendor/ODM and Port System/Product..."
-          
           cp base/vendor*.img output/vendor.img
           cp base/odm*.img output/odm.img || true
           
           cp port/system*.img output/system.img
           cp port/product*.img output/product.img || true
-          
-          ls -lh output/
 
       - name: Rebuild Super Image (lpmake)
         run: |
           cd workspace/output
-          echo "Calculating partition sizes and rebuilding super.img..."
-          
           SYS_SIZE=$(stat -c%s system.img)
           VEN_SIZE=$(stat -c%s vendor.img)
           PROD_SIZE=$([ -f product.img ] && stat -c%s product.img || echo 0)
           ODM_SIZE=$([ -f odm.img ] && stat -c%s odm.img || echo 0)
-          
-          TOTAL_USED=$((SYS_SIZE + VEN_SIZE + PROD_SIZE + ODM_SIZE))
-          echo "Total partitions size: $TOTAL_USED bytes"
           
           lpmake \
             --device-size 4831838208 \
