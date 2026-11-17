@@ -41,10 +41,9 @@ jobs:
         run: |
           export PATH="$HOME/.cargo/bin:$PATH"
           
-          # تنظيف وإعادة إنشاء المجلدات لتكون فارغة تماماً
-          rm -rf workspace/base workspace/port workspace/output
-          mkdir -p workspace/base workspace/port workspace/output
-          cd workspace
+          # تنظيف مساحة العمل بالكامل
+          rm -rf workspace
+          mkdir -p workspace/output
           
           MODEL_BASE="SM-A045F"
           CSC_BASE="${{ github.event.inputs.a04_csc }}"
@@ -53,15 +52,15 @@ jobs:
           CSC_PORT="${{ github.event.inputs.a05s_csc }}"
           
           echo "Downloading Base Firmware ($MODEL_BASE)..."
-          samloader download -m "$MODEL_BASE" -r "$CSC_BASE" -o base/
+          # تمرير مسار ملف محدد بصيغة .zip
+          samloader download -m "$MODEL_BASE" -r "$CSC_BASE" -o workspace/base_firmware.zip
           
           echo "Downloading Port Firmware ($MODEL_PORT)..."
-          samloader download -m "$MODEL_PORT" -r "$CSC_PORT" -o port/
+          samloader download -m "$MODEL_PORT" -r "$CSC_PORT" -o workspace/port_firmware.zip
 
       - name: Verify Downloaded Files
         run: |
-          ls -lh workspace/base/
-          ls -lh workspace/port/
+          ls -lh workspace/
 
       - name: Extract and Process Firmware
         run: |
