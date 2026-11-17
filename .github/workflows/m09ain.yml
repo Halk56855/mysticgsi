@@ -4,13 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       a05s_csc:
-        description: 'CSC for A05s Source (e.g., INS, EGY)'
+        description: 'CSC for A05s Source (e.g., INS, XSG)'
         required: true
-        default: 'INS'
+        default: 'XSG'
       a04_csc:
-        description: 'CSC for A04 Base (e.g., INS, EGY)'
+        description: 'CSC for A04 Base (e.g., INS, XSG)'
         required: true
-        default: 'INS'
+        default: 'XSG'
 
 jobs:
   build:
@@ -33,33 +33,40 @@ jobs:
 
       - name: Install samloader-rs via Cargo
         run: |
-          cargo install --git https://github.com/topjohnwu/samloader-rs.git
-          # إضافة المسار الحالي والمستقبلي لمتغيرات البيئة الخاصة بـ GitHub Actions
+          # التعديل هنا: إضافة اسم الحزمة samloader في نهاية الأمر
+          cargo install --git https://github.com/topjohnwu/samloader-rs.git samloader
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Download Firmwares using samloader-rs
         shell: bash
         run: |
-          # تصدير المسار مؤقتاً لهذه الخطوة لضمان عمل الأمر
           export PATH="$HOME/.cargo/bin:$PATH"
           
-          mkdir -p work/a05s work/a04
+          mkdir -p workspace/base workspace/port workspace/output
+          cd workspace
           
-          echo "Downloading Galaxy A05s Firmware..."
-          samloader download -m SM-A057F -r ${{ github.event.inputs.a05s_csc }} -O work/a05s
+          MODEL_BASE="SM-A045F"
+          CSC_BASE="${{ github.event.inputs.a04_csc }}"
+          TAC_BASE="35096623"
           
-          echo "Downloading Galaxy A04 Firmware..."
-          samloader download -m SM-A045F -r ${{ github.event.inputs.a04_csc }} -O work/a04
+          MODEL_PORT="SM-A057F"
+          CSC_PORT="${{ github.event.inputs.a05s_csc }}"
+          TAC_PORT="35428971"
+          
+          echo "Downloading Base Firmware ($MODEL_BASE)..."
+          samloader download -m "$MODEL_BASE" -r "$CSC_BASE" -i "$TAC_BASE" -O base/
+          
+          echo "Downloading Port Firmware ($MODEL_PORT)..."
+          samloader download -m "$MODEL_PORT" -r "$CSC_PORT" -i "$TAC_PORT" -O port/
 
       - name: Verify Downloaded Files
         run: |
-          ls -la work/a05s
-          ls -la work/a04
+          ls -lh workspace/base/
+          ls -lh workspace/port/
 
       - name: Extract and Process Firmware
         run: |
           chmod +x tools/port.sh
-          # تمرير المسار لسكربت البورت أيضاً
           export PATH="$HOME/.cargo/bin:$PATH"
           ./tools/port.sh
         shell: bash
@@ -68,5 +75,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Ported-ROM-A04
-          path: work/output/*.zip
+          path: workspace/output/*.zip
           retention-days: 3
