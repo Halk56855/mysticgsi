@@ -42,13 +42,13 @@ jobs:
             android-sdk-libsparse-utils erofs-utils \
             build-essential libssl-dev liblz4-1 pkg-config
           
-          # تثبيت لغة Rust لترصيص وبناء samloader-rs
+          # تثبيت لغة Rust
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           export PATH="$HOME/.cargo/bin:$PATH"
           
-          # تثبيت أداة topjohnwu/samloader-rs مباشرة من مستودعها الرسمي
-          cargo install --git https://github.com/topjohnwu/samloader-rs.git
+          # تثبيت الحزمة الصحيحة samloader من المستودع مباشرة
+          cargo install --git https://github.com/topjohnwu/samloader-rs.git samloader
           
           # إعداد أدوات فك وتجميع الأقسام الديناميكية
           mkdir -p ~/bin
@@ -69,7 +69,7 @@ jobs:
           echo "Checking available updates for $MODEL ($CSC)..."
           samloader check-update -m "$MODEL" -r "$CSC"
           
-          echo "Downloading firmware using samloader-rs (multi-threaded)..."
+          echo "Downloading firmware using samloader-rs..."
           samloader download -m "$MODEL" -r "$CSC" -o base_rom.zip || samloader download --model "$MODEL" --region "$CSC" -o base_rom.zip
 
       - name: Download Port ROM (HyperOS)
