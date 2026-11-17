@@ -33,7 +33,6 @@ jobs:
 
       - name: Install samloader-rs via Cargo
         run: |
-          # التعديل هنا: إضافة اسم الحزمة samloader في نهاية الأمر
           cargo install --git https://github.com/topjohnwu/samloader-rs.git samloader
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
@@ -47,17 +46,15 @@ jobs:
           
           MODEL_BASE="SM-A045F"
           CSC_BASE="${{ github.event.inputs.a04_csc }}"
-          TAC_BASE="35096623"
           
           MODEL_PORT="SM-A057F"
           CSC_PORT="${{ github.event.inputs.a05s_csc }}"
-          TAC_PORT="35428971"
           
           echo "Downloading Base Firmware ($MODEL_BASE)..."
-          samloader download -m "$MODEL_BASE" -r "$CSC_BASE" -i "$TAC_BASE" -O base/
+          samloader download -m "$MODEL_BASE" -r "$CSC_BASE" -O base/
           
           echo "Downloading Port Firmware ($MODEL_PORT)..."
-          samloader download -m "$MODEL_PORT" -r "$CSC_PORT" -i "$TAC_PORT" -O port/
+          samloader download -m "$MODEL_PORT" -r "$CSC_PORT" -O port/
 
       - name: Verify Downloaded Files
         run: |
