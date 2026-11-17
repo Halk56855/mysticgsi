@@ -1,4 +1,4 @@
-name: Build HyperOS Port ROM for Galaxy A04 (Final Perfect Match)
+name: Build HyperOS Port ROM for Galaxy A04 (Robust Partition Finder)
 
 on:
   workflow_dispatch:
@@ -87,7 +87,7 @@ jobs:
             tar -xf "$AP_FILE" -C base_extracted/
           fi
           
-          # استخراج super.img الأساسي وفكه لتوليد الأقسام تماماً كما في الصورة
+          # استخراج super.img الأساسي وفكه
           BASE_SUPER=$(find base_extracted/ -name "super.img" | head -n 1)
           if [ -f "$BASE_SUPER" ]; then
             simg2img "$BASE_SUPER" base/super_raw.img || cp "$BASE_SUPER" base/super_raw.img
@@ -105,19 +105,42 @@ jobs:
           simg2img "$PORT_SUPER" port/super_raw.img || cp "$PORT_SUPER" port/super_raw.img
           lpunpack port/super_raw.img port/
 
-      - name: Prepare Partitions for Merging
+      - name: Prepare Partitions for Merging (Robust Finder)
         run: |
           cd workspace
-          echo "Configuring partitions based on Base (Samsung) and Port (HyperOS)..."
+          mkdir -p output
+          echo "Checking extracted files for debugging..."
+          ls -lh base/
+          ls -lh port/
           
-          # أخذ الأقسام الأساسية من سامسونج (vendor, odm, system_ext)
-          cp base/vendor.img output/vendor.img
-          cp base/odm.img output/odm.img || true
-          cp base/system_ext.img output/system_ext.img || true
+          # استخدام البحث المرن للتعامل مع أي اختلاف في التسمية
+          VENDOR_IMG=$(find base/ -name "*vendor*.img" | head -n 1)
+          ODM_IMG=$(find base/ -name "*odm*.img" | head -n 1)
+          SYS_EXT_IMG=$(find base/ -name "*system_ext*.img" | head -n 1)
           
-          # أخذ نظام التشغيل والبرودكت من روم شاومي HyperOS المपोर्ट
-          cp port/system.img output/system.img
-          cp port/product.img output/product.img || true
+          SYS_IMG=$(find port/ -name "*system*.img" | head -n 1)
+          PROD_IMG=$(find port/ -name "*product*.img" | head -n 1)
+          
+          if [ -f "$VENDOR_IMG" ]; then
+            cp "$VENDOR_IMG" output/vendor.img
+            echo "Found and copied vendor: $VENDOR_IMG"
+          else
+            echo "Error: vendor image not found!"
+            exit 1
+          fi
+          
+          [ -f "$ODM_IMG" ] && cp "$ODM_IMG" output/odm.img && echo "Copied odm" || true
+          [ -f "$SYS_EXT_IMG" ] && cp "$SYS_EXT_IMG" output/system_ext.img && echo "Copied system_ext" || true
+          
+          if [ -f "$SYS_IMG" ]; then
+            cp "$SYS_IMG" output/system.img
+            echo "Found and copied system: $SYS_IMG"
+          else
+            echo "Error: system image not found!"
+            exit 1
+          fi
+          
+          [ -f "$PROD_IMG" ] && cp "$PROD_IMG" output/product.img && echo "Copied product" || true
           
           ls -lh output/
 
