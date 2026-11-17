@@ -1,4 +1,4 @@
-name: Build HyperOS Port ROM for Galaxy A04 (Robust Partition Finder)
+name: Build HyperOS Port ROM for Galaxy A04 (Fully Fixed Unpacking)
 
 on:
   workflow_dispatch:
@@ -73,74 +73,61 @@ jobs:
           echo "Downloading Port ROM (HyperOS) using Axel..."
           axel -n 32 -o port_rom.tgz "${{ github.event.inputs.port_rom_url }}" || aria2c -c -x16 -s16 "${{ github.event.inputs.port_rom_url }}" -o port_rom.tgz
 
-      - name: Extract Firmware Images
+      - name: Extract and Unpack super.img for Both Base and Port ROMs
         run: |
           cd workspace
-          mkdir -p base_extracted port_extracted base port output
+          mkdir -p base_extracted port_extracted base_unpacked port_unpacked output
           
-          echo "Extracting Base ROM (Samsung)..."
+          echo "=== 1. Extracting Samsung Base ROM ==="
           unzip -q base_rom.zip -d base_extracted/ || tar -xf base_rom.zip -C base_extracted/
-          
           AP_FILE=$(find base_extracted/ -name "AP_*.tar*" | head -n 1)
           if [ -n "$AP_FILE" ]; then
-            echo "Extracting AP tar: $AP_FILE"
             tar -xf "$AP_FILE" -C base_extracted/
           fi
           
-          # استخراج super.img الأساسي وفكه
           BASE_SUPER=$(find base_extracted/ -name "super.img" | head -n 1)
           if [ -f "$BASE_SUPER" ]; then
-            simg2img "$BASE_SUPER" base/super_raw.img || cp "$BASE_SUPER" base/super_raw.img
+            simg2img "$BASE_SUPER" base_super_raw.img || cp "$BASE_SUPER" base_super_raw.img
           else
             BASE_SUPER_LZ4=$(find base_extracted/ -name "super.img.lz4" | head -n 1)
-            lz4 -d "$BASE_SUPER_LZ4" base/super_raw.img
+            lz4 -d "$BASE_SUPER_LZ4" base_super_raw.img
           fi
           
-          echo "Unpacking Base super.img..."
-          lpunpack base/super_raw.img base/
+          echo "=== Unpacking Samsung Base super.img ==="
+          mkdir -p base_unpacked
+          lpunpack base_super_raw.img base_unpacked/
+          ls -lh base_unpacked/
           
-          echo "Extracting Port ROM (HyperOS)..."
+          echo "=== 2. Extracting Xiaomi HyperOS Port ROM ==="
           tar -xzf port_rom.tgz -C port_extracted/
+          
           PORT_SUPER=$(find port_extracted/ -name "super.img" | head -n 1)
-          simg2img "$PORT_SUPER" port/super_raw.img || cp "$PORT_SUPER" port/super_raw.img
-          lpunpack port/super_raw.img port/
+          if [ -f "$PORT_SUPER" ]; then
+            simg2img "$PORT_SUPER" port_super_raw.img || cp "$PORT_SUPER" port_super_raw.img
+          else
+            echo "Error: Xiaomi super.img not found in Port ROM!"
+            exit 1
+          fi
+          
+          echo "=== Unpacking Xiaomi HyperOS super.img ==="
+          mkdir -p port_unpacked
+          lpunpack port_super_raw.img port_unpacked/
+          ls -lh port_unpacked/
 
-      - name: Prepare Partitions for Merging (Robust Finder)
+      - name: Prepare Partitions for Merging
         run: |
           cd workspace
           mkdir -p output
-          echo "Checking extracted files for debugging..."
-          ls -lh base/
-          ls -lh port/
           
-          # استخدام البحث المرن للتعامل مع أي اختلاف في التسمية
-          VENDOR_IMG=$(find base/ -name "*vendor*.img" | head -n 1)
-          ODM_IMG=$(find base/ -name "*odm*.img" | head -n 1)
-          SYS_EXT_IMG=$(find base/ -name "*system_ext*.img" | head -n 1)
+          echo "Copying required partitions..."
+          # الأقسام المأخوذة من سامسونج الأساسي
+          cp base_unpacked/vendor.img output/vendor.img
+          cp base_unpacked/odm.img output/odm.img || true
+          cp base_unpacked/system_ext.img output/system_ext.img || true
           
-          SYS_IMG=$(find port/ -name "*system*.img" | head -n 1)
-          PROD_IMG=$(find port/ -name "*product*.img" | head -n 1)
-          
-          if [ -f "$VENDOR_IMG" ]; then
-            cp "$VENDOR_IMG" output/vendor.img
-            echo "Found and copied vendor: $VENDOR_IMG"
-          else
-            echo "Error: vendor image not found!"
-            exit 1
-          fi
-          
-          [ -f "$ODM_IMG" ] && cp "$ODM_IMG" output/odm.img && echo "Copied odm" || true
-          [ -f "$SYS_EXT_IMG" ] && cp "$SYS_EXT_IMG" output/system_ext.img && echo "Copied system_ext" || true
-          
-          if [ -f "$SYS_IMG" ]; then
-            cp "$SYS_IMG" output/system.img
-            echo "Found and copied system: $SYS_IMG"
-          else
-            echo "Error: system image not found!"
-            exit 1
-          fi
-          
-          [ -f "$PROD_IMG" ] && cp "$PROD_IMG" output/product.img && echo "Copied product" || true
+          # الأقسام المأخوذة من روم شاومي HyperOS
+          cp port_unpacked/system.img output/system.img
+          cp port_unpacked/product.img output/product.img || true
           
           ls -lh output/
 
