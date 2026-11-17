@@ -41,6 +41,8 @@ jobs:
         run: |
           export PATH="$HOME/.cargo/bin:$PATH"
           
+          # تنظيف وإعادة إنشاء المجلدات لتكون فارغة تماماً
+          rm -rf workspace/base workspace/port workspace/output
           mkdir -p workspace/base workspace/port workspace/output
           cd workspace
           
