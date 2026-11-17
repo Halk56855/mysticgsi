@@ -29,10 +29,11 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y lz4 simg2img img2simg unzip p7zip-full erofs-utils python3-pip curl git
-          # تثبيت أداة samloader-rs لتحميل الفيرموير[span_0](start_span)[span_0](end_span)
+          # استخدام الحزمة البديلة الحديثة android-sdk-libsparse-utils بدلاً من الأدوات القديمة
+          sudo apt-get install -y lz4 android-sdk-libsparse-utils unzip p7zip-full erofs-utils python3-pip curl git
+          
+          # تثبيت أداة samloader-rs عبر Cargo
           cargo install --git https://github.com/topjohnwu/samloader-rs.git || echo "Cargo install failed or already exists"
-          # إضافة مسار cargo للـ PATH
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Download Firmwares using samloader-rs
