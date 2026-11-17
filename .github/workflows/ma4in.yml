@@ -1,4 +1,4 @@
-name: Build HyperOS Port ROM for Galaxy A04 (Fully Fixed Unpacking)
+name: Build HyperOS Port ROM for Galaxy A04 (Fixed Sparse Conversion)
 
 on:
   workflow_dispatch:
@@ -73,7 +73,7 @@ jobs:
           echo "Downloading Port ROM (HyperOS) using Axel..."
           axel -n 32 -o port_rom.tgz "${{ github.event.inputs.port_rom_url }}" || aria2c -c -x16 -s16 "${{ github.event.inputs.port_rom_url }}" -o port_rom.tgz
 
-      - name: Extract and Unpack super.img for Both Base and Port ROMs
+      - name: Extract, Convert and Unpack super.img for Both Base and Port ROMs
         run: |
           cd workspace
           mkdir -p base_extracted port_extracted base_unpacked port_unpacked output
@@ -85,12 +85,16 @@ jobs:
             tar -xf "$AP_FILE" -C base_extracted/
           fi
           
+          BASE_SUPER_LZ4=$(find base_extracted/ -name "super.img.lz4" | head -n 1)
           BASE_SUPER=$(find base_extracted/ -name "super.img" | head -n 1)
-          if [ -f "$BASE_SUPER" ]; then
+          
+          if [ -f "$BASE_SUPER_LZ4" ]; then
+            echo "Decompressing Samsung super.img.lz4..."
+            lz4 -d "$BASE_SUPER_LZ4" base_super_sparse.img
+            simg2img base_super_sparse.img base_super_raw.img
+          elif [ -f "$BASE_SUPER" ]; then
+            echo "Converting Samsung super.img to raw..."
             simg2img "$BASE_SUPER" base_super_raw.img || cp "$BASE_SUPER" base_super_raw.img
-          else
-            BASE_SUPER_LZ4=$(find base_extracted/ -name "super.img.lz4" | head -n 1)
-            lz4 -d "$BASE_SUPER_LZ4" base_super_raw.img
           fi
           
           echo "=== Unpacking Samsung Base super.img ==="
@@ -103,6 +107,7 @@ jobs:
           
           PORT_SUPER=$(find port_extracted/ -name "super.img" | head -n 1)
           if [ -f "$PORT_SUPER" ]; then
+            echo "Converting Xiaomi super.img to raw..."
             simg2img "$PORT_SUPER" port_super_raw.img || cp "$PORT_SUPER" port_super_raw.img
           else
             echo "Error: Xiaomi super.img not found in Port ROM!"
@@ -120,12 +125,10 @@ jobs:
           mkdir -p output
           
           echo "Copying required partitions..."
-          # الأقسام المأخوذة من سامسونج الأساسي
           cp base_unpacked/vendor.img output/vendor.img
           cp base_unpacked/odm.img output/odm.img || true
           cp base_unpacked/system_ext.img output/system_ext.img || true
           
-          # الأقسام المأخوذة من روم شاومي HyperOS
           cp port_unpacked/system.img output/system.img
           cp port_unpacked/product.img output/product.img || true
           
