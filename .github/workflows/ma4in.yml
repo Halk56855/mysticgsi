@@ -1,12 +1,17 @@
-name: Build HyperOS Port ROM for Galaxy A04
+name: Build HyperOS Port ROM for Galaxy A04 (Using samloader-rs)
 
 on:
   workflow_dispatch:
     inputs:
-      base_rom_url:
-        description: 'رابط الروم الرسمي الأساسي لهاتف Samsung Galaxy A04 (Base ROM)'
+      samsung_model:
+        description: 'موديل هاتف سامسونج'
         required: true
-        default: 'https://drive.usercontent.google.com/download?id=1Wn4asCAPGMd09FUOsko8DHkqQ-834gZA&export=download&authuser=0&confirm=t&uuid=9752b91e-168d-4ebe-9c3f-89cff79a63b9&at=AMrWOn1mYXUMi3TgqHZEuEIw9zqM%3A1794841933571'
+        default: 'SM-A045F'
+        type: string
+      samsung_csc:
+        description: 'رمز المنطقة (CSC) مثل XSG أو EGY'
+        required: true
+        default: 'XSG'
         type: string
       port_rom_url:
         description: 'رابط روم شاومي HyperOS (Port ROM)'
@@ -22,81 +27,53 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Free Disk Space (Aggressive Cleanup)
+      - name: Free Disk Space
         run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /usr/share/swift
-          sudo rm -rf /usr/local/.ghcup
-          sudo rm -rf /opt/hostedtoolcache
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /usr/share/swift /usr/local/.ghcup /opt/hostedtoolcache
           sudo docker image prune -a --force
           sudo apt-get clean
 
-      - name: Set up Environment & Build Tools From Source
+      - name: Set up Environment & Install samloader-rs
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            git wget curl python3 python3-requests \
+            git wget curl python3 \
             cpio aria2 zip unzip lz4 zstd e2fsprogs \
             android-sdk-libsparse-utils erofs-utils \
-            build-essential libssl-dev liblz4-1 cmake libpcre2-dev
+            build-essential libssl-dev liblz4-1 pkg-config
           
-          # بناء أدوات lpunpack و lpmake محلياً لضمان عدم فشل التحميل الخارجي
-          mkdir -p ~/tools_build && cd ~/tools_build
-          git clone https://android.googlesource.com/platform/system/tools/mkbootimg system/tools/mkbootimg || true
-          git clone https://github.com/marin-m/p7zip-desktop || true
+          # تثبيت لغة Rust لترصيص وبناء samloader-rs
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          export PATH="$HOME/.cargo/bin:$PATH"
           
-          # استنساخ المستودع الرسمي المباشر لأدوات الأقسام وبنائها فوراً
-          git clone https://github.com/pinebrow/lpunpack_lpmake_static.git || git clone https://github.com/anestisb/android-simg-utils || true
+          # تثبيت أداة topjohnwu/samloader-rs مباشرة من مستودعها الرسمي
+          cargo install --git https://github.com/topjohnwu/samloader-rs.git
           
-          # طريقة أقوى: استخدام حزمة سورس أدوات AOSP الرسمية لتوليد الأداة بدقة
-          git clone https://cs.android.com/android/platform/system/core /tmp/system_core || true
-          
-          # استخدام بديل مضمون 100% لتثبيت الأدوات الجاهزة عبر مدير حزم نظام لينكس الحديث
-          sudo apt-get install -y android-sdk-libsparse-utils || true
-          
-          # تحميل الأدوات من مرآة بديلة موثوقة جداً
+          # إعداد أدوات فك وتجميع الأقسام الديناميكية
           mkdir -p ~/bin
           wget -q https://raw.githubusercontent.com/Khushlesh-Saini/Action-Port-ROM/main/tools/lpmake -O ~/bin/lpmake || true
           wget -q https://raw.githubusercontent.com/Khushlesh-Saini/Action-Port-ROM/main/tools/lpunpack -O ~/bin/lpunpack || true
-          
-          # إذا لم تتواجد، نقوم ببنائها برمجياً عبر g++ فوراً
-          if [ ! -f ~/bin/lpmake ]; then
-            echo "Building lpmake from source..."
-            git clone https://github.com/xcash/simg2img.git ~/simgtools || true
-            cd ~/simgtools && make && sudo cp simg2img /usr/bin/ && sudo cp img2simg /usr/bin/
-          fi
-          
-          chmod +x ~/bin/* || true
-          sudo chmod +x /usr/bin/lpunpack /usr/bin/lpmake || true
+          chmod +x ~/bin/*
           echo "$HOME/bin" >> $GITHUB_PATH
-          
-          # التحقق النهائي من وجود الأدوات
-          which lpunpack || echo "lpunpack will use fallback"
-          which lpmake || echo "lpmake will use fallback"
 
-      - name: Download Base (Galaxy A04) and Port (HyperOS) ROMs
+      - name: Download Base ROM using topjohnwu/samloader-rs
         run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
           mkdir -p workspace/base workspace/port workspace/output
+          cd workspace
           
-          echo "Downloading Base ROM (Galaxy A04) via Python Direct Script..."
-          python3 -c "
-          import requests
-          url = 'https://docs.google.com/uc?export=download'
-          file_id = '1Wn4asCAPGMd09FUOsko8DHkqQ-834gZA'
-          session = requests.Session()
-          response = session.get(url, params={'id': file_id}, stream=True)
-          token = next((v for k, v in response.cookies.items() if k.startswith('download_warning')), None)
-          if token:
-              response = session.get(url, params={'id': file_id, 'confirm': token}, stream=True)
-          with open('workspace/base_rom.zip', 'wb') as f:
-              for chunk in response.iter_content(32768):
-                  if chunk:
-                      f.write(chunk)
-          "
+          MODEL="${{ github.event.inputs.samsung_model }}"
+          CSC="${{ github.event.inputs.samsung_csc }}"
           
-          echo "Downloading Port ROM (HyperOS)..."
+          echo "Checking available updates for $MODEL ($CSC)..."
+          samloader check-update -m "$MODEL" -r "$CSC"
+          
+          echo "Downloading firmware using samloader-rs (multi-threaded)..."
+          samloader download -m "$MODEL" -r "$CSC" -o base_rom.zip || samloader download --model "$MODEL" --region "$CSC" -o base_rom.zip
+
+      - name: Download Port ROM (HyperOS)
+        run: |
           aria2c -c -x16 -s16 "${{ github.event.inputs.port_rom_url }}" -o workspace/port_rom.tgz
 
       - name: Extract Firmware Images
@@ -121,11 +98,11 @@ jobs:
             simg2img base_extracted/super.img base/super_raw.img || cp base_extracted/super.img base/super_raw.img
           fi
           
-          lpunpack base/super_raw.img base/ || python3 -c "import os; print('Trying alternative unpack')"
+          lpunpack base/super_raw.img base/
           
           PORT_SUPER=$(find port_extracted/ -name "super.img" | head -n 1)
           simg2img "$PORT_SUPER" port/super_raw.img || cp "$PORT_SUPER" port/super_raw.img
-          lpunpack port/super_raw.img port/ || true
+          lpunpack port/super_raw.img port/
 
       - name: Prepare Partitions for Merging
         run: |
