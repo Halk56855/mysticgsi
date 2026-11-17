@@ -1,4 +1,4 @@
-name: Build HyperOS Port ROM for Galaxy A04 (Complete & Final)
+name: Build HyperOS Port ROM for Galaxy A04 (Final Perfect Match)
 
 on:
   workflow_dispatch:
@@ -87,7 +87,7 @@ jobs:
             tar -xf "$AP_FILE" -C base_extracted/
           fi
           
-          # استخراج super.img الأساسي وفكه لتوليد vendor.img و odm.img وغيرها
+          # استخراج super.img الأساسي وفكه لتوليد الأقسام تماماً كما في الصورة
           BASE_SUPER=$(find base_extracted/ -name "super.img" | head -n 1)
           if [ -f "$BASE_SUPER" ]; then
             simg2img "$BASE_SUPER" base/super_raw.img || cp "$BASE_SUPER" base/super_raw.img
@@ -108,11 +108,14 @@ jobs:
       - name: Prepare Partitions for Merging
         run: |
           cd workspace
-          echo "Copying vendor/odm from base and system/product from port..."
+          echo "Configuring partitions based on Base (Samsung) and Port (HyperOS)..."
           
+          # أخذ الأقسام الأساسية من سامسونج (vendor, odm, system_ext)
           cp base/vendor.img output/vendor.img
           cp base/odm.img output/odm.img || true
+          cp base/system_ext.img output/system_ext.img || true
           
+          # أخذ نظام التشغيل والبرودكت من روم شاومي HyperOS المपोर्ट
           cp port/system.img output/system.img
           cp port/product.img output/product.img || true
           
@@ -125,6 +128,7 @@ jobs:
           VEN_SIZE=$(stat -c%s vendor.img)
           PROD_SIZE=$([ -f product.img ] && stat -c%s product.img || echo 0)
           ODM_SIZE=$([ -f odm.img ] && stat -c%s odm.img || echo 0)
+          SYS_EXT_SIZE=$([ -f system_ext.img ] && stat -c%s system_ext.img || echo 0)
           
           lpmake \
             --device-size 4831838208 \
@@ -136,6 +140,7 @@ jobs:
             --partition vendor:readonly:$VEN_SIZE:main --image vendor=vendor.img \
             $([ -f product.img ] && echo "--partition product:readonly:$PROD_SIZE:main --image product=product.img") \
             $([ -f odm.img ] && echo "--partition odm:readonly:$ODM_SIZE:main --image odm=odm.img") \
+            $([ -f system_ext.img ] && echo "--partition system_ext:readonly:$SYS_EXT_SIZE:main --image system_ext=system_ext.img") \
             --sparse \
             --output super.img
 
