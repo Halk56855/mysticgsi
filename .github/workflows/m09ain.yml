@@ -1,0 +1,59 @@
+name: Port OneUI to Galaxy A04
+
+on:
+  workflow_dispatch:
+    inputs:
+      a05s_csc:
+        description: 'CSC for A05s Source (e.g., INS, EGY)'
+        required: true
+        default: 'INS'
+      a04_csc:
+        description: 'CSC for A04 Base (e.g., INS, EGY)'
+        required: true
+        default: 'INS'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Free Up Disk Space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          sudo apt-get clean
+          df -h
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lz4 simg2img img2simg unzip p7zip-full erofs-utils python3-pip curl git
+          # تثبيت أداة samloader-rs لتحميل الفيرموير[span_0](start_span)[span_0](end_span)
+          cargo install --git https://github.com/topjohnwu/samloader-rs.git || echo "Cargo install failed or already exists"
+          # إضافة مسار cargo للـ PATH
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Download Firmwares using samloader-rs
+        run: |
+          mkdir -p work/a05s work/a04
+          
+          echo "Downloading Galaxy A05s Firmware..."
+          samloader download -m SM-A057F -r ${{ github.event.inputs.a05s_csc }} -O work/a05s || true
+          
+          echo "Downloading Galaxy A04 Firmware..."
+          samloader download -m SM-A045F -r ${{ github.event.inputs.a04_csc }} -O work/a04 || true
+
+      - name: Extract and Process Firmware
+        run: |
+          chmod +x tools/port.sh
+          ./tools/port.sh
+        shell: bash
+
+      - name: Upload Port Output
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ported-ROM-A04
+          path: work/output/*.zip
+          retention-days: 3
