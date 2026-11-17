@@ -31,13 +31,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y lz4 android-sdk-libsparse-utils unzip p7zip-full erofs-utils python3-pip curl git
           
-          # تثبيت أداة lpunpack الرسمية للتعامل مع أقسام super.img
+          # تثبيت أدوات نظام أندرويد لضمان توفر lpunpack
           sudo apt-get install -y android-tools-fsutils || true
           
-          # طريقة احتياطية لتثبيت lpunpack في حال عدم توفرها في المستودع الرسمي
+          # التأكد من وجود الأداة وصلاحيتها التنفيذية
           if ! command -v lpunpack &> /dev/null; then
-              curl -sL https://github.com/marin-m/pylpunpack/raw/master/lpunpack.py -o /usr/local/bin/lpunpack
-              chmod +x /usr/local/bin/lpunpack
+              # استخدام أداة بايثون موثوقة لفحص وتفكيك super.img في حال تعذر البرنامج الثنائي
+              sudo pip3 install pylpunpack
           fi
 
       - name: Install samloader-rs via Cargo
