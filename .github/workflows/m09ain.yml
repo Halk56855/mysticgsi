@@ -29,26 +29,38 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          # استخدام الحزمة البديلة الحديثة android-sdk-libsparse-utils بدلاً من الأدوات القديمة
           sudo apt-get install -y lz4 android-sdk-libsparse-utils unzip p7zip-full erofs-utils python3-pip curl git
-          
-          # تثبيت أداة samloader-rs عبر Cargo
-          cargo install --git https://github.com/topjohnwu/samloader-rs.git || echo "Cargo install failed or already exists"
+
+      - name: Install samloader-rs via Cargo
+        run: |
+          cargo install --git https://github.com/topjohnwu/samloader-rs.git
+          # إضافة المسار الحالي والمستقبلي لمتغيرات البيئة الخاصة بـ GitHub Actions
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Download Firmwares using samloader-rs
+        shell: bash
         run: |
+          # تصدير المسار مؤقتاً لهذه الخطوة لضمان عمل الأمر
+          export PATH="$HOME/.cargo/bin:$PATH"
+          
           mkdir -p work/a05s work/a04
           
           echo "Downloading Galaxy A05s Firmware..."
-          samloader download -m SM-A057F -r ${{ github.event.inputs.a05s_csc }} -O work/a05s || true
+          samloader download -m SM-A057F -r ${{ github.event.inputs.a05s_csc }} -O work/a05s
           
           echo "Downloading Galaxy A04 Firmware..."
-          samloader download -m SM-A045F -r ${{ github.event.inputs.a04_csc }} -O work/a04 || true
+          samloader download -m SM-A045F -r ${{ github.event.inputs.a04_csc }} -O work/a04
+
+      - name: Verify Downloaded Files
+        run: |
+          ls -la work/a05s
+          ls -la work/a04
 
       - name: Extract and Process Firmware
         run: |
           chmod +x tools/port.sh
+          # تمرير المسار لسكربت البورت أيضاً
+          export PATH="$HOME/.cargo/bin:$PATH"
           ./tools/port.sh
         shell: bash
 
