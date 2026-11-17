@@ -1,4 +1,4 @@
-name: Build HyperOS Port ROM for Galaxy A04 (Fast Download)
+name: Build HyperOS Port ROM for Galaxy A04 (Complete & Final)
 
 on:
   workflow_dispatch:
@@ -33,7 +33,7 @@ jobs:
           sudo docker image prune -a --force
           sudo apt-get clean
 
-      - name: Set up Environment & Install Tools (Axel Added)
+      - name: Set up Environment & Install Tools
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -42,7 +42,7 @@ jobs:
             android-sdk-libsparse-utils erofs-utils \
             build-essential libssl-dev liblz4-1 pkg-config
           
-          # تثبيت Rust و samloader-rs لتحميل روم سامسونج
+          # تثبيت لغة Rust و samloader-rs لتحميل روم سامسونج
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           export PATH="$HOME/.cargo/bin:$PATH"
@@ -70,34 +70,37 @@ jobs:
       - name: Download Port ROM (HyperOS) with Axel Accelerator
         run: |
           cd workspace
-          echo "Downloading Port ROM (HyperOS) using Axel (32 connections)..."
-          # استخدام axel لتسريع التحميل وتجاوز بطء سيرفرات شاومي
+          echo "Downloading Port ROM (HyperOS) using Axel..."
           axel -n 32 -o port_rom.tgz "${{ github.event.inputs.port_rom_url }}" || aria2c -c -x16 -s16 "${{ github.event.inputs.port_rom_url }}" -o port_rom.tgz
 
       - name: Extract Firmware Images
         run: |
           cd workspace
-          mkdir -p base_extracted port_extracted
+          mkdir -p base_extracted port_extracted base port output
           
-          echo "Extracting Base ROM..."
+          echo "Extracting Base ROM (Samsung)..."
           unzip -q base_rom.zip -d base_extracted/ || tar -xf base_rom.zip -C base_extracted/
-          
-          echo "Extracting Port ROM..."
-          tar -xzf port_rom.tgz -C port_extracted/
           
           AP_FILE=$(find base_extracted/ -name "AP_*.tar*" | head -n 1)
           if [ -n "$AP_FILE" ]; then
+            echo "Extracting AP tar: $AP_FILE"
             tar -xf "$AP_FILE" -C base_extracted/
           fi
           
-          if [ -f base_extracted/super.img.lz4 ]; then
-            lz4 -d base_extracted/super.img.lz4 base/super_raw.img
-          elif [ -f base_extracted/super.img ]; then
-            simg2img base_extracted/super.img base/super_raw.img || cp base_extracted/super.img base/super_raw.img
+          # استخراج super.img الأساسي وفكه لتوليد vendor.img و odm.img وغيرها
+          BASE_SUPER=$(find base_extracted/ -name "super.img" | head -n 1)
+          if [ -f "$BASE_SUPER" ]; then
+            simg2img "$BASE_SUPER" base/super_raw.img || cp "$BASE_SUPER" base/super_raw.img
+          else
+            BASE_SUPER_LZ4=$(find base_extracted/ -name "super.img.lz4" | head -n 1)
+            lz4 -d "$BASE_SUPER_LZ4" base/super_raw.img
           fi
           
+          echo "Unpacking Base super.img..."
           lpunpack base/super_raw.img base/
           
+          echo "Extracting Port ROM (HyperOS)..."
+          tar -xzf port_rom.tgz -C port_extracted/
           PORT_SUPER=$(find port_extracted/ -name "super.img" | head -n 1)
           simg2img "$PORT_SUPER" port/super_raw.img || cp "$PORT_SUPER" port/super_raw.img
           lpunpack port/super_raw.img port/
@@ -105,11 +108,15 @@ jobs:
       - name: Prepare Partitions for Merging
         run: |
           cd workspace
-          cp base/vendor*.img output/vendor.img
-          cp base/odm*.img output/odm.img || true
+          echo "Copying vendor/odm from base and system/product from port..."
           
-          cp port/system*.img output/system.img
-          cp port/product*.img output/product.img || true
+          cp base/vendor.img output/vendor.img
+          cp base/odm.img output/odm.img || true
+          
+          cp port/system.img output/system.img
+          cp port/product.img output/product.img || true
+          
+          ls -lh output/
 
       - name: Rebuild Super Image (lpmake)
         run: |
