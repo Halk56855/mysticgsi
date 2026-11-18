@@ -1,4 +1,4 @@
-name: Build HyperOS Port ROM for Galaxy A04 (Direct View Link Support)
+name: Build HyperOS Port ROM for Galaxy A04 (Robust Git Tools)
 
 on:
   workflow_dispatch:
@@ -51,10 +51,17 @@ jobs:
           export PATH="$HOME/.cargo/bin:$PATH"
           cargo install --git https://github.com/topjohnwu/samloader-rs.git samloader
           
-          # تجهيز أدوات الأقسام (lpmake و lpunpack)
+          # تجهيز أدوات الأقسام (lpmake و lpunpack) عبر استنساخ مستودع موثوق لتجنب أخطاء التحميل
           mkdir -p ~/bin
-          wget -q https://raw.githubusercontent.com/Khushlesh-Saini/Action-Port-ROM/main/tools/lpmake -O ~/bin/lpmake
-          wget -q https://raw.githubusercontent.com/Khushlesh-Saini/Action-Port-ROM/main/tools/lpunpack -O ~/bin/lpunpack
+          git clone --depth=1 https://github.com/whyshhnuv/lpunpack-lpmake-mirror.git /tmp/lpbinary || \
+          git clone --depth=1 https://github.com/Exynos-nigg/lpunpack-lpmake-mirror.git /tmp/lpbinary
+          
+          if [ -d "/tmp/lpbinary/binary" ]; then
+            cp /tmp/lpbinary/binary/* ~/bin/
+          else
+            find /tmp/lpbinary -name "lpmake" -o -name "lpunpack" -exec cp {} ~/bin/ \;
+          fi
+          
           chmod +x ~/bin/*
           echo "$HOME/bin" >> $GITHUB_PATH
 
