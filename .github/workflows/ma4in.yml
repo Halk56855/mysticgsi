@@ -1,4 +1,4 @@
-name: Build HyperOS Port ROM for Galaxy A04 (Direct Curl Fix)
+name: Build HyperOS Port ROM for Galaxy A04 (Final Wget Fix)
 
 on:
   workflow_dispatch:
@@ -74,7 +74,7 @@ jobs:
           echo "Downloading Samsung firmware using samloader-rs..."
           samloader download -m "$MODEL" -r "$CSC" -o base_rom.zip || samloader download --model "$MODEL" --region "$CSC" -o base_rom.zip
 
-      - name: Download Port ROM from Google Drive (Direct Curl Bypass)
+      - name: Download Port ROM from Google Drive (Robust Wget Bypass)
         run: |
           cd workspace
           ROM_URL="${{ github.event.inputs.port_rom_url }}"
@@ -82,20 +82,23 @@ jobs:
           FILE_ID=$(echo "$ROM_URL" | grep -oP '(?<=/d/)[^/]+' || echo "$ROM_URL" | grep -oP '(?<=id=)[^&]+')
           echo "Extracted Google Drive File ID: $FILE_ID"
           
-          echo "Downloading Port ROM via curl with automatic virus-warning bypass..."
+          echo "Downloading Port ROM via wget with virus warning bypass..."
           URL="https://drive.google.com/uc?export=download&id=$FILE_ID"
           
-          rm -rf /tmp/cookie.txt /tmp/response.txt
-          curl -c /tmp/cookie.txt -s -L "$URL" > /tmp/response.txt
+          wget --save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate -qO- "$URL" > /tmp/page.html
           
-          CONFIRM=$(grep -oP 'confirm=[a-zA-Z0-9_-]+' /tmp/response.txt | head -n 1 || true)
+          CONFIRM=$(grep -oP 'name="confirm" value="\K[^"]+' /tmp/page.html || echo "t")
+          UUID=$(grep -oP 'name="uuid" value="\K[^"]+' /tmp/page.html || true)
           
-          if [ -n "$CONFIRM" ]; then
-            echo "Found Google Drive virus warning confirmation: $CONFIRM"
-            curl -Lb /tmp/cookie.txt "https://drive.google.com/uc?export=download&confirm=${CONFIRM#confirm=}&id=$FILE_ID" -o port_rom_archive
+          echo "Extracted confirm token: $CONFIRM, uuid: $UUID"
+          
+          if [ -n "$UUID" ]; then
+            DOWNLOAD_URL="https://drive.usercontent.google.com/download?id=$FILE_ID&export=download&confirm=$CONFIRM&uuid=$UUID"
           else
-            mv /tmp/response.txt port_rom_archive
+            DOWNLOAD_URL="https://drive.usercontent.google.com/download?id=$FILE_ID&export=download&confirm=$CONFIRM"
           fi
+          
+          wget --load-cookies /tmp/cookies.txt --no-check-certificate "$DOWNLOAD_URL" -O port_rom_archive
           
           ls -lh port_rom_archive
           file port_rom_archive
