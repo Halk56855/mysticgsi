@@ -1,4 +1,4 @@
-name: Build HyperOS Port ROM for Galaxy A04 (Fixed gdown Syntax)
+name: Build HyperOS Port ROM for Galaxy A04 (Final Fully Fixed)
 
 on:
   workflow_dispatch:
@@ -42,7 +42,7 @@ jobs:
             android-sdk-libsparse-utils erofs-utils file \
             build-essential libssl-dev liblz4-1 pkg-config
           
-          # تثبيت أداة gdown لتخطي صفحة تحذير الفيروسات في Google Drive
+          # تثبيت أداة gdown لتخطي قيود التحميل في Google Drive
           pip3 install --break-system-packages -U gdown || pip3 install -U gdown
           
           # تثبيت لغة Rust و samloader-rs لتحميل روم سامسونج
