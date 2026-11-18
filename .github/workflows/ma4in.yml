@@ -1,4 +1,4 @@
-name: Build HyperOS Port ROM for Galaxy A04 (Final Wget Fix)
+name: Build HyperOS Port ROM for Galaxy A04 (Direct Fast Download)
 
 on:
   workflow_dispatch:
@@ -14,9 +14,9 @@ on:
         default: 'XSG'
         type: string
       port_rom_url:
-        description: 'رابط Google Drive المباشر لروم شاومي HyperOS'
+        description: 'رابط التحميل المباشر لروم شاومي HyperOS'
         required: true
-        default: 'https://drive.google.com/file/d/1m-RU5Xsib6C62YkHkxVwDvRotwkcIWz6/view'
+        default: 'https://bigota.d.miui.com/OS3.0.307.0.WGTMIXM/lake_global_images_OS3.0.307.0.WGTMIXM_20260921.0000.00_16.0_global_1f77e5d8d7.tgz'
         type: string
 
 jobs:
@@ -74,31 +74,13 @@ jobs:
           echo "Downloading Samsung firmware using samloader-rs..."
           samloader download -m "$MODEL" -r "$CSC" -o base_rom.zip || samloader download --model "$MODEL" --region "$CSC" -o base_rom.zip
 
-      - name: Download Port ROM from Google Drive (Robust Wget Bypass)
+      - name: Download Port ROM via Direct Link (aria2c)
         run: |
           cd workspace
           ROM_URL="${{ github.event.inputs.port_rom_url }}"
           
-          FILE_ID=$(echo "$ROM_URL" | grep -oP '(?<=/d/)[^/]+' || echo "$ROM_URL" | grep -oP '(?<=id=)[^&]+')
-          echo "Extracted Google Drive File ID: $FILE_ID"
-          
-          echo "Downloading Port ROM via wget with virus warning bypass..."
-          URL="https://drive.google.com/uc?export=download&id=$FILE_ID"
-          
-          wget --save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate -qO- "$URL" > /tmp/page.html
-          
-          CONFIRM=$(grep -oP 'name="confirm" value="\K[^"]+' /tmp/page.html || echo "t")
-          UUID=$(grep -oP 'name="uuid" value="\K[^"]+' /tmp/page.html || true)
-          
-          echo "Extracted confirm token: $CONFIRM, uuid: $UUID"
-          
-          if [ -n "$UUID" ]; then
-            DOWNLOAD_URL="https://drive.usercontent.google.com/download?id=$FILE_ID&export=download&confirm=$CONFIRM&uuid=$UUID"
-          else
-            DOWNLOAD_URL="https://drive.usercontent.google.com/download?id=$FILE_ID&export=download&confirm=$CONFIRM"
-          fi
-          
-          wget --load-cookies /tmp/cookies.txt --no-check-certificate "$DOWNLOAD_URL" -O port_rom_archive
+          echo "Downloading Port ROM using high-speed aria2c..."
+          aria2c -c -x16 -s16 "$ROM_URL" -o port_rom_archive
           
           ls -lh port_rom_archive
           file port_rom_archive
@@ -158,7 +140,7 @@ jobs:
           elif file port_rom_archive | grep -qi "POSIX tar"; then
             tar -xf port_rom_archive -C port_extracted/
           else
-            echo "Error: Downloaded file is not a valid archive! Google Drive returned HTML."
+            echo "Error: Downloaded file is not a valid archive!"
             head -n 20 port_rom_archive
             exit 1
           fi
