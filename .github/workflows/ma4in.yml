@@ -1,4 +1,4 @@
-name: Build HyperOS Port ROM for Galaxy A04 (Bypass Drive Virus Warning)
+name: Build HyperOS Port ROM for Galaxy A04 (Robust Drive Download)
 
 on:
   workflow_dispatch:
@@ -42,6 +42,9 @@ jobs:
             android-sdk-libsparse-utils erofs-utils file \
             build-essential libssl-dev liblz4-1 pkg-config
           
+          # تثبيت أداة gdown المحدثة
+          pip3 install --break-system-packages -U gdown
+          
           # تثبيت لغة Rust و samloader-rs لتحميل روم سامسونج
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
@@ -74,26 +77,19 @@ jobs:
           echo "Downloading Samsung firmware using samloader-rs..."
           samloader download -m "$MODEL" -r "$CSC" -o base_rom.zip || samloader download --model "$MODEL" --region "$CSC" -o base_rom.zip
 
-      - name: Download Port ROM from Google Drive (Bypass Virus Warning)
+      - name: Download Port ROM from Google Drive (Smart Python Bypass)
         run: |
+          export PATH="$HOME/.local/bin:$PATH"
           cd workspace
           ROM_URL="${{ github.event.inputs.port_rom_url }}"
           
-          # استخراج معرّف الملف (File ID) من الرابط تلقائياً
-          FILE_ID=$(echo "$ROM_URL" | grep -oP '(?<=/d/)[^/]+' || echo "$ROM_URL" | grep -oP '(?<=id=)[^&]+')
-          echo "Extracted Google Drive File ID: $FILE_ID"
-          
-          echo "Downloading large file via curl with confirmation cookie bypass..."
-          # استخدام أداة curl مع جلسة وهمية لتخطي صفحة تحذير الحجم والفيروسات
-          URL="https://drive.google.com/uc?export=download&id=$FILE_ID"
-          
-          CONFIRM=$(wget --save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate -qO- "$URL" | grep -oP 'confirm=[a-zA-Z0-9_-]+' || true)
-          if [ -n "$CONFIRM" ]; then
-            echo "Bypassing virus warning confirmation token..."
-            wget --load-cookies /tmp/cookies.txt "https://drive.google.com/uc?export=download&confirm=$CONFIRM&id=$FILE_ID" -O port_rom_archive
-          else
-            wget --load-cookies /tmp/cookies.txt "$URL" -O port_rom_archive
-          fi
+          echo "Downloading Port ROM using gdown with advanced confirmation handling..."
+          # استخدام gdown مباشرة مع رابط العرض أو التنزيل
+          gdown --id "1m-RU5Xsib6C62YkHkxVwDvRotwkcIWz6" -O port_rom_archive || python3 -c "
+          import gdown
+          url = '${{ github.event.inputs.port_rom_url }}'
+          gdown.download(url, 'port_rom_archive', fuzzy=True)
+          "
           
           ls -lh port_rom_archive
           file port_rom_archive
@@ -153,7 +149,7 @@ jobs:
           elif file port_rom_archive | grep -qi "POSIX tar"; then
             tar -xf port_rom_archive -C port_extracted/
           else
-            echo "Error: Downloaded file is not a valid archive! Check if Google Drive returned an HTML page."
+            echo "Error: Downloaded file is not a valid archive! Google Drive returned HTML."
             head -n 20 port_rom_archive
             exit 1
           fi
