@@ -1,4 +1,4 @@
-name: Build HyperOS Port ROM for Galaxy A04 (Robust Git Tools)
+name: Build HyperOS Port ROM for Galaxy A04 (Fixed gdown Syntax)
 
 on:
   workflow_dispatch:
@@ -51,7 +51,7 @@ jobs:
           export PATH="$HOME/.cargo/bin:$PATH"
           cargo install --git https://github.com/topjohnwu/samloader-rs.git samloader
           
-          # تجهيز أدوات الأقسام (lpmake و lpunpack) عبر استنساخ مستودع موثوق لتجنب أخطاء التحميل
+          # تجهيز أدوات الأقسام (lpmake و lpunpack) عبر استنساخ مستودع موثوق
           mkdir -p ~/bin
           git clone --depth=1 https://github.com/whyshhnuv/lpunpack-lpmake-mirror.git /tmp/lpbinary || \
           git clone --depth=1 https://github.com/Exynos-nigg/lpunpack-lpmake-mirror.git /tmp/lpbinary
@@ -84,7 +84,7 @@ jobs:
           ROM_URL="${{ github.event.inputs.port_rom_url }}"
           
           echo "Downloading Port ROM from Google Drive..."
-          gdown --fuzzy "$ROM_URL" -O port_rom_archive
+          gdown "$ROM_URL" -O port_rom_archive
           
           ls -lh port_rom_archive
           file port_rom_archive
