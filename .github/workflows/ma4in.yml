@@ -1,4 +1,4 @@
-name: Build HyperOS Port ROM for Galaxy A04 (Final Robust Build)
+name: Build HyperOS Port ROM for Galaxy A04 (Fast Google Drive Port)
 
 on:
   workflow_dispatch:
@@ -14,9 +14,9 @@ on:
         default: 'XSG'
         type: string
       port_rom_url:
-        description: 'رابط روم شاومي HyperOS (Port ROM)'
+        description: 'رابط روم شاومي HyperOS المباشر (Google Drive)'
         required: true
-        default: 'https://bigota.d.miui.com/V816.0.4.0.UGRMIXM/blue_global_images_V816.0.4.0.UGRMIXM_20240312.0000.00_14.0_d53ed3c01a.tgz'
+        default: 'https://drive.usercontent.google.com/download?id=1m-RU5Xsib6C62YkHkxVwDvRotwkcIWz6&export=download&confirm=t'
         type: string
 
 jobs:
@@ -67,11 +67,13 @@ jobs:
           echo "Downloading Samsung firmware using samloader-rs..."
           samloader download -m "$MODEL" -r "$CSC" -o base_rom.zip || samloader download --model "$MODEL" --region "$CSC" -o base_rom.zip
 
-      - name: Download Port ROM (HyperOS) with Axel Accelerator
+      - name: Download Port ROM (HyperOS) from Google Drive
         run: |
           cd workspace
-          echo "Downloading Port ROM (HyperOS) using Axel..."
-          axel -n 32 -o port_rom.tgz "${{ github.event.inputs.port_rom_url }}" || aria2c -c -x16 -s16 "${{ github.event.inputs.port_rom_url }}" -o port_rom.tgz
+          echo "Downloading Port ROM from Google Drive..."
+          curl -L -C - "${{ github.event.inputs.port_rom_url }}" -o port_rom_archive
+          ls -lh port_rom_archive
+          file port_rom_archive
 
       - name: Extract, Convert and Unpack super.img for Both Base and Port ROMs
         run: |
@@ -106,7 +108,6 @@ jobs:
           fi
           
           echo "=== Unpacking Samsung Base super.img ==="
-          mkdir -p base_unpacked
           lpunpack base_super_raw.img base_unpacked/
           ls -lh base_unpacked/
           
@@ -116,9 +117,19 @@ jobs:
           fi
           
           echo "=== 2. Extracting Xiaomi HyperOS Port ROM ==="
-          tar -xzf port_rom.tgz -C port_extracted/
-          PORT_SUPER=$(find port_extracted/ -name "super.img" | head -n 1)
+          if file port_rom_archive | grep -q "gzip"; then
+            tar -xzf port_rom_archive -C port_extracted/
+          elif file port_rom_archive | grep -q "Zip"; then
+            unzip -q port_rom_archive -d port_extracted/
+          elif file port_rom_archive | grep -q "POSIX tar"; then
+            tar -xf port_rom_archive -C port_extracted/
+          else
+            echo "Error: Downloaded file is not a valid archive (check Google Drive sharing permissions)!"
+            head -n 20 port_rom_archive
+            exit 1
+          fi
           
+          PORT_SUPER=$(find port_extracted/ -name "super.img" | head -n 1)
           if [ -f "$PORT_SUPER" ]; then
             echo "Checking Xiaomi super.img type..."
             if file "$PORT_SUPER" | grep -q "sparse"; then
@@ -133,7 +144,6 @@ jobs:
           fi
           
           echo "=== Unpacking Xiaomi HyperOS super.img ==="
-          mkdir -p port_unpacked
           lpunpack port_super_raw.img port_unpacked/
           ls -lh port_unpacked/
           
