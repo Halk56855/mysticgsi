@@ -1,4 +1,4 @@
-name: Build HyperOS Port ROM for Galaxy A04 (lpmake Binary Fix)
+name: Build HyperOS Port ROM for Galaxy A04 (lpmake Flags Fix)
 
 on:
   workflow_dispatch:
@@ -48,7 +48,7 @@ jobs:
           export PATH="$HOME/.cargo/bin:$PATH"
           cargo install -q --git https://github.com/topjohnwu/samloader-rs.git samloader
 
-          # تجهيز أدوات الأقسام (lpmake و lpunpack) والتحقق من صلاحيتها
+          # تجهيز أدوات الأقسام (lpmake و lpunpack)
           mkdir -p ~/bin
           git clone --depth=1 -q https://github.com/whyshhnuv/lpunpack-lpmake-mirror.git /tmp/lpbinary || \
           git clone --depth=1 -q https://github.com/Exynos-nigg/lpunpack-lpmake-mirror.git /tmp/lpbinary
@@ -61,7 +61,6 @@ jobs:
 
           chmod +x ~/bin/*
           echo "$HOME/bin" >> $GITHUB_PATH
-          file ~/bin/lpmake ~/bin/lpunpack || true
 
       - name: Download Base ROM (Samsung)
         run: |
@@ -231,35 +230,41 @@ jobs:
           export PATH="$HOME/bin:$PATH"
           cd workspace/output
 
-          echo "lpmake binary check:"
-          command -v lpmake
-          file "$(command -v lpmake)"
+          echo "=== lpmake --help ==="
+          lpmake --help || true
 
           SUPER_SIZE=6810540052
-          ARGS=(
-            --metadata-size 65536
-            --metadata-slots 2
-            --device-size "$SUPER_SIZE"
-            --device "super:$SUPER_SIZE"
-            --group "main:$SUPER_SIZE"
-          )
-
+          PART_ARGS=()
           for part in system vendor product odm system_ext; do
             if [ -f "${part}.img" ] && [ -s "${part}.img" ]; then
               SZ=$(stat -c%s "${part}.img")
-              ARGS+=(
+              PART_ARGS+=(
                 --partition "${part}:readonly:${SZ}:main"
                 --image "${part}=${part}.img"
               )
             fi
           done
 
-          ARGS+=(
-            --sparse
-            --output super.img
-          )
+          echo "Trying lpmake with --device-size only..."
+          if ! lpmake \
+            --metadata-size 65536 \
+            --metadata-slots 2 \
+            --device-size "$SUPER_SIZE" \
+            --group "main:$SUPER_SIZE" \
+            "${PART_ARGS[@]}" \
+            --sparse \
+            --output super.img; then
+            echo "Trying lpmake with --device super:$SUPER_SIZE..."
+            lpmake \
+              --metadata-size 65536 \
+              --metadata-slots 2 \
+              --device "super:$SUPER_SIZE" \
+              --group "main:$SUPER_SIZE" \
+              "${PART_ARGS[@]}" \
+              --sparse \
+              --output super.img
+          fi
 
-          lpmake "${ARGS[@]}"
           ls -lh super.img
 
       - name: Compress Final ROM Package
