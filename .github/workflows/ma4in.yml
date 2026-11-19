@@ -1,4 +1,4 @@
-name: Build HyperOS Port ROM for Galaxy A04 (A/B Partition Fix)
+name: Build HyperOS Port ROM for Galaxy A04 (lpmake Fix)
 
 on:
   workflow_dispatch:
@@ -229,25 +229,33 @@ jobs:
         run: |
           export PATH="$HOME/bin:$PATH"
           cd workspace/output
-          SYS_SIZE=$(stat -c%s system.img)
-          VEN_SIZE=$(stat -c%s vendor.img)
-          PROD_SIZE=$([ -f product.img ] && stat -c%s product.img || echo 0)
-          ODM_SIZE=$([ -f odm.img ] && stat -c%s odm.img || echo 0)
-          SYS_EXT_SIZE=$([ -f system_ext.img ] && stat -c%s system_ext.img || echo 0)
 
-          lpmake \
-            --device-size 4831838208 \
-            --metadata-size 65536 \
-            --metadata-slots 2 \
-            --device super:4831838208 \
-            --group main:4831838208 \
-            --partition system:readonly:$SYS_SIZE:main --image system=system.img \
-            --partition vendor:readonly:$VEN_SIZE:main --image vendor=vendor.img \
-            $([ -f product.img ] && echo "--partition product:readonly:$PROD_SIZE:main --image product=product.img") \
-            $([ -f odm.img ] && echo "--partition odm:readonly:$ODM_SIZE:main --image odm=odm.img") \
-            $([ -f system_ext.img ] && echo "--partition system_ext:readonly:$SYS_EXT_SIZE:main --image system_ext=system_ext.img") \
-            --sparse \
+          SUPER_SIZE=6810540052
+          ARGS=(
+            --device-size "$SUPER_SIZE"
+            --metadata-size 65536
+            --metadata-slots 2
+            --device "super:$SUPER_SIZE"
+            --group "main:$SUPER_SIZE"
+          )
+
+          for part in system vendor product odm system_ext; do
+            if [ -f "${part}.img" ] && [ -s "${part}.img" ]; then
+              SZ=$(stat -c%s "${part}.img")
+              ARGS+=(
+                --partition "${part}:readonly:${SZ}:main"
+                --image "${part}=${part}.img"
+              )
+            fi
+          done
+
+          ARGS+=(
+            --sparse
             --output super.img
+          )
+
+          lpmake "${ARGS[@]}"
+          ls -lh super.img
 
       - name: Compress Final ROM Package
         run: |
