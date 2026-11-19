@@ -1,4 +1,4 @@
-name: Build HyperOS Port ROM for Galaxy A04 (Fast Download)
+name: Build HyperOS Port ROM for Galaxy A04 (A/B Partition Fix)
 
 on:
   workflow_dispatch:
@@ -186,10 +186,19 @@ jobs:
           ls -lh port_unpacked/
           rm -f port_super_raw.img
 
-          if [ ! -f "port_unpacked/system.img" ]; then
-            echo "Error: lpunpack failed to extract system.img from Xiaomi super!"
+          PORT_SYS=""
+          if [ -f "port_unpacked/system_a.img" ] && [ -s "port_unpacked/system_a.img" ]; then
+            PORT_SYS="port_unpacked/system_a.img"
+          elif [ -f "port_unpacked/system.img" ] && [ -s "port_unpacked/system.img" ]; then
+            PORT_SYS="port_unpacked/system.img"
+          fi
+
+          if [ -z "$PORT_SYS" ]; then
+            echo "Error: lpunpack failed to extract non-empty system_a.img or system.img from Xiaomi super!"
             exit 1
           fi
+
+          echo "Using Xiaomi system image: $PORT_SYS"
 
       - name: Prepare Partitions for Merging
         run: |
@@ -201,8 +210,17 @@ jobs:
           cp base_unpacked/odm.img output/odm.img || true
           cp base_unpacked/system_ext.img output/system_ext.img || true
 
-          cp port_unpacked/system.img output/system.img
-          cp port_unpacked/product.img output/product.img || true
+          if [ -f "port_unpacked/system_a.img" ] && [ -s "port_unpacked/system_a.img" ]; then
+            cp port_unpacked/system_a.img output/system.img
+          else
+            cp port_unpacked/system.img output/system.img
+          fi
+
+          if [ -f "port_unpacked/product_a.img" ] && [ -s "port_unpacked/product_a.img" ]; then
+            cp port_unpacked/product_a.img output/product.img
+          elif [ -f "port_unpacked/product.img" ] && [ -s "port_unpacked/product.img" ]; then
+            cp port_unpacked/product.img output/product.img
+          fi
 
           rm -rf base_extracted port_extracted base_unpacked port_unpacked
           ls -lh output/
