@@ -1,4 +1,4 @@
-name: Build HyperOS Port ROM for Galaxy A04 (lpmake Flags Fix)
+name: Build HyperOS Port ROM for Galaxy A04 (Block Alignment & Build Fix)
 
 on:
   workflow_dispatch:
@@ -38,7 +38,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq \
-            git wget curl python3 \
+            git wget curl python3 g++ make \
             cpio aria2 zip unzip lz4 zstd e2fsprogs \
             android-sdk-libsparse-utils erofs-utils file
 
@@ -61,6 +61,18 @@ jobs:
 
           chmod +x ~/bin/*
           echo "$HOME/bin" >> $GITHUB_PATH
+
+          # التحقق من سلامة lpmake وبناؤه تلقائياً إذا حدث Segmentation fault
+          if ! ~/bin/lpmake --version >/dev/null 2>&1; then
+            echo "Prebuilt lpmake failed health check, building from source..."
+            git clone --depth=1 -q https://github.com/anestisb/android-prepare-vendor.git /tmp/apv || true
+            git clone --depth=1 -q https://github.com/LonelyFool/lpunpack_and_lpmake.git /tmp/lp_src || true
+            if [ -d "/tmp/lp_src" ] && [ -f "/tmp/lp_src/Makefile" ]; then
+              make -C /tmp/lp_src -j"$(nproc)"
+              cp /tmp/lp_src/lpmake /tmp/lp_src/lpunpack ~/bin/
+              chmod +x ~/bin/*
+            fi
+          fi
 
       - name: Download Base ROM (Samsung)
         run: |
@@ -230,10 +242,12 @@ jobs:
           export PATH="$HOME/bin:$PATH"
           cd workspace/output
 
-          echo "=== lpmake --help ==="
-          lpmake --help || true
+          # محاذاة حجم جهاز super ليكون من مضاعفات 4096 بايت تماماً
+          RAW_SIZE=6810540052
+          BLOCK_SIZE=4096
+          SUPER_SIZE=$(( ((RAW_SIZE + BLOCK_SIZE - 1) / BLOCK_SIZE) * BLOCK_SIZE ))
+          echo "Aligned SUPER_SIZE: $SUPER_SIZE (mod 4096 = $((SUPER_SIZE % BLOCK_SIZE)))"
 
-          SUPER_SIZE=6810540052
           PART_ARGS=()
           for part in system vendor product odm system_ext; do
             if [ -f "${part}.img" ] && [ -s "${part}.img" ]; then
@@ -245,25 +259,16 @@ jobs:
             fi
           done
 
-          echo "Trying lpmake with --device-size only..."
-          if ! lpmake \
+          lpmake \
             --metadata-size 65536 \
             --metadata-slots 2 \
+            --block-size "$BLOCK_SIZE" \
             --device-size "$SUPER_SIZE" \
+            --device "super:$SUPER_SIZE" \
             --group "main:$SUPER_SIZE" \
             "${PART_ARGS[@]}" \
             --sparse \
-            --output super.img; then
-            echo "Trying lpmake with --device super:$SUPER_SIZE..."
-            lpmake \
-              --metadata-size 65536 \
-              --metadata-slots 2 \
-              --device "super:$SUPER_SIZE" \
-              --group "main:$SUPER_SIZE" \
-              "${PART_ARGS[@]}" \
-              --sparse \
-              --output super.img
-          fi
+            --output super.img
 
           ls -lh super.img
 
