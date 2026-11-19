@@ -1,4 +1,4 @@
-name: Build HyperOS Port ROM for Galaxy A04 (Direct Fast Download)
+name: Build HyperOS Port ROM for Galaxy A04 (Fast Download)
 
 on:
   workflow_dispatch:
@@ -22,6 +22,7 @@ on:
 jobs:
   build-port:
     runs-on: ubuntu-latest
+    timeout-minutes: 180
 
     steps:
       - name: Checkout Repository
@@ -35,30 +36,29 @@ jobs:
 
       - name: Set up Environment & Install Tools
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            git wget curl python3 python3-pip python3-requests \
-            cpio aria2 axel zip unzip lz4 zstd e2fsprogs \
-            android-sdk-libsparse-utils erofs-utils file \
-            build-essential libssl-dev liblz4-1 pkg-config
-          
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            git wget curl python3 \
+            cpio aria2 zip unzip lz4 zstd e2fsprogs \
+            android-sdk-libsparse-utils erofs-utils file
+
           # تثبيت لغة Rust و samloader-rs لتحميل روم سامسونج
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y -q
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           export PATH="$HOME/.cargo/bin:$PATH"
-          cargo install --git https://github.com/topjohnwu/samloader-rs.git samloader
-          
+          cargo install -q --git https://github.com/topjohnwu/samloader-rs.git samloader
+
           # تجهيز أدوات الأقسام (lpmake و lpunpack)
           mkdir -p ~/bin
-          git clone --depth=1 https://github.com/whyshhnuv/lpunpack-lpmake-mirror.git /tmp/lpbinary || \
-          git clone --depth=1 https://github.com/Exynos-nigg/lpunpack-lpmake-mirror.git /tmp/lpbinary
-          
+          git clone --depth=1 -q https://github.com/whyshhnuv/lpunpack-lpmake-mirror.git /tmp/lpbinary || \
+          git clone --depth=1 -q https://github.com/Exynos-nigg/lpunpack-lpmake-mirror.git /tmp/lpbinary
+
           if [ -d "/tmp/lpbinary/binary" ]; then
             cp /tmp/lpbinary/binary/* ~/bin/
           else
             find /tmp/lpbinary -name "lpmake" -o -name "lpunpack" -exec cp {} ~/bin/ \;
           fi
-          
+
           chmod +x ~/bin/*
           echo "$HOME/bin" >> $GITHUB_PATH
 
@@ -67,21 +67,35 @@ jobs:
           export PATH="$HOME/.cargo/bin:$PATH"
           mkdir -p workspace/base workspace/port workspace/output
           cd workspace
-          
+
           MODEL="${{ github.event.inputs.samsung_model }}"
           CSC="${{ github.event.inputs.samsung_csc }}"
-          
+
           echo "Downloading Samsung firmware using samloader-rs..."
           samloader download -m "$MODEL" -r "$CSC" -o base_rom.zip || samloader download --model "$MODEL" --region "$CSC" -o base_rom.zip
 
-      - name: Download Port ROM via Direct Link (aria2c)
+      - name: Download Port ROM via Direct Link (Fast Aria2c)
         run: |
           cd workspace
           ROM_URL="${{ github.event.inputs.port_rom_url }}"
-          
-          echo "Downloading Port ROM using high-speed aria2c..."
-          aria2c -c -x16 -s16 "$ROM_URL" -o port_rom_archive
-          
+
+          echo "Downloading Port ROM using optimized aria2c..."
+          aria2c \
+            --continue=true \
+            --max-connection-per-server=16 \
+            --split=16 \
+            --min-split-size=10M \
+            --file-allocation=none \
+            --max-tries=10 \
+            --retry-wait=3 \
+            --timeout=30 \
+            --connect-timeout=15 \
+            --console-log-interval=30 \
+            --summary-interval=30 \
+            --user-agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36" \
+            "$ROM_URL" \
+            -o port_rom_archive
+
           ls -lh port_rom_archive
           file port_rom_archive
 
@@ -90,7 +104,7 @@ jobs:
           export PATH="$HOME/bin:$PATH"
           cd workspace
           mkdir -p base_extracted port_extracted base_unpacked port_unpacked output
-          
+
           echo "=== 1. Extracting Samsung Base ROM ==="
           unzip -q base_rom.zip -d base_extracted/ || tar -xf base_rom.zip -C base_extracted/
           AP_FILE=$(find base_extracted/ -name "AP_*.tar*" | head -n 1)
@@ -98,13 +112,13 @@ jobs:
             echo "Found AP tar: $AP_FILE, extracting..."
             tar -xf "$AP_FILE" -C base_extracted/
           fi
-          
+
           BASE_SUPER_LZ4=$(find base_extracted/ -name "super.img.lz4" | head -n 1)
           BASE_SUPER=$(find base_extracted/ -name "super.img" | head -n 1)
-          
+
           if [ -f "$BASE_SUPER_LZ4" ]; then
             echo "Decompressing Samsung super.img.lz4..."
-            lz4 -d "$BASE_SUPER_LZ4" base_super_temp.img
+            lz4 -d -q "$BASE_SUPER_LZ4" base_super_temp.img
             rm -f "$BASE_SUPER_LZ4"
           elif [ -f "$BASE_SUPER" ]; then
             mv "$BASE_SUPER" base_super_temp.img
@@ -112,7 +126,7 @@ jobs:
             echo "Error: Samsung super.img not found!"
             exit 1
           fi
-          
+
           echo "Checking Samsung super image format: $(file base_super_temp.img)"
           if file base_super_temp.img | grep -qi "sparse"; then
             echo "Converting Sparse image to Raw via simg2img..."
@@ -121,17 +135,17 @@ jobs:
           else
             mv base_super_temp.img base_super_raw.img
           fi
-          
+
           echo "=== Unpacking Samsung Base super.img ==="
           lpunpack base_super_raw.img base_unpacked/
           ls -lh base_unpacked/
-          rm -f base_super_raw.img
-          
+          rm -f base_super_raw.img base_rom.zip
+
           if [ ! -f "base_unpacked/vendor.img" ]; then
             echo "Error: lpunpack failed to extract vendor.img from Samsung super!"
             exit 1
           fi
-          
+
           echo "=== 2. Extracting Xiaomi HyperOS Port ROM ==="
           if file port_rom_archive | grep -qi "gzip"; then
             tar -xzf port_rom_archive -C port_extracted/
@@ -145,7 +159,7 @@ jobs:
             exit 1
           fi
           rm -f port_rom_archive
-          
+
           PORT_SUPER=$(find port_extracted/ -name "super.img" | head -n 1)
           if [ -f "$PORT_SUPER" ]; then
             echo "Checking Xiaomi super image format: $(file "$PORT_SUPER")"
@@ -159,12 +173,12 @@ jobs:
             find port_extracted/ -maxdepth 3
             exit 1
           fi
-          
+
           echo "=== Unpacking Xiaomi HyperOS super.img ==="
           lpunpack port_super_raw.img port_unpacked/
           ls -lh port_unpacked/
           rm -f port_super_raw.img
-          
+
           if [ ! -f "port_unpacked/system.img" ]; then
             echo "Error: lpunpack failed to extract system.img from Xiaomi super!"
             exit 1
@@ -174,15 +188,15 @@ jobs:
         run: |
           cd workspace
           mkdir -p output
-          
+
           echo "Copying required partitions..."
           cp base_unpacked/vendor.img output/vendor.img
           cp base_unpacked/odm.img output/odm.img || true
           cp base_unpacked/system_ext.img output/system_ext.img || true
-          
+
           cp port_unpacked/system.img output/system.img
           cp port_unpacked/product.img output/product.img || true
-          
+
           rm -rf base_extracted port_extracted base_unpacked port_unpacked
           ls -lh output/
 
@@ -195,7 +209,7 @@ jobs:
           PROD_SIZE=$([ -f product.img ] && stat -c%s product.img || echo 0)
           ODM_SIZE=$([ -f odm.img ] && stat -c%s odm.img || echo 0)
           SYS_EXT_SIZE=$([ -f system_ext.img ] && stat -c%s system_ext.img || echo 0)
-          
+
           lpmake \
             --device-size 4831838208 \
             --metadata-size 65536 \
@@ -213,7 +227,7 @@ jobs:
       - name: Compress Final ROM Package
         run: |
           cd workspace/output
-          tar -cvf Galaxy-A04-HyperOS-Port.tar super.img
+          tar -cf Galaxy-A04-HyperOS-Port.tar super.img
           gzip Galaxy-A04-HyperOS-Port.tar
 
       - name: Upload Final ROM Artifact
