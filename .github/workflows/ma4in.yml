@@ -1,4 +1,4 @@
-name: Build HyperOS Port ROM for Galaxy A04 (Block Alignment & Build Fix)
+name: Build HyperOS Port ROM for Galaxy A04 (AOSP 15 Partition Tools)
 
 on:
   workflow_dispatch:
@@ -38,7 +38,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq \
-            git wget curl python3 g++ make \
+            git wget curl python3 \
             cpio aria2 zip unzip lz4 zstd e2fsprogs \
             android-sdk-libsparse-utils erofs-utils file
 
@@ -48,31 +48,19 @@ jobs:
           export PATH="$HOME/.cargo/bin:$PATH"
           cargo install -q --git https://github.com/topjohnwu/samloader-rs.git samloader
 
-          # تجهيز أدوات الأقسام (lpmake و lpunpack)
-          mkdir -p ~/bin
-          git clone --depth=1 -q https://github.com/whyshhnuv/lpunpack-lpmake-mirror.git /tmp/lpbinary || \
-          git clone --depth=1 -q https://github.com/Exynos-nigg/lpunpack-lpmake-mirror.git /tmp/lpbinary
+          # تجهيز أدوات الأقسام من Rprop/aosp15_partition_tools (Linux x86_64)
+          mkdir -p ~/bin /tmp/aosp15_tools
+          git clone --depth=1 -q https://github.com/Rprop/aosp15_partition_tools.git /tmp/aosp15_tools
 
-          if [ -d "/tmp/lpbinary/binary" ]; then
-            cp /tmp/lpbinary/binary/* ~/bin/
+          if [ -d "/tmp/aosp15_tools/linux_glibc_x86_64" ]; then
+            cp -f /tmp/aosp15_tools/linux_glibc_x86_64/* ~/bin/
           else
-            find /tmp/lpbinary -name "lpmake" -o -name "lpunpack" -exec cp {} ~/bin/ \;
+            find /tmp/aosp15_tools -type f \( -name "lpmake" -o -name "lpunpack" -o -name "simg2img" -o -name "ext2simg" \) -exec cp -f {} ~/bin/ \;
           fi
 
           chmod +x ~/bin/*
           echo "$HOME/bin" >> $GITHUB_PATH
-
-          # التحقق من سلامة lpmake وبناؤه تلقائياً إذا حدث Segmentation fault
-          if ! ~/bin/lpmake --version >/dev/null 2>&1; then
-            echo "Prebuilt lpmake failed health check, building from source..."
-            git clone --depth=1 -q https://github.com/anestisb/android-prepare-vendor.git /tmp/apv || true
-            git clone --depth=1 -q https://github.com/LonelyFool/lpunpack_and_lpmake.git /tmp/lp_src || true
-            if [ -d "/tmp/lp_src" ] && [ -f "/tmp/lp_src/Makefile" ]; then
-              make -C /tmp/lp_src -j"$(nproc)"
-              cp /tmp/lp_src/lpmake /tmp/lp_src/lpunpack ~/bin/
-              chmod +x ~/bin/*
-            fi
-          fi
+          file ~/bin/lpmake ~/bin/lpunpack || true
 
       - name: Download Base ROM (Samsung)
         run: |
@@ -242,11 +230,18 @@ jobs:
           export PATH="$HOME/bin:$PATH"
           cd workspace/output
 
-          # محاذاة حجم جهاز super ليكون من مضاعفات 4096 بايت تماماً
-          RAW_SIZE=6810540052
+          TOTAL_PARTS_BYTES=0
+          for part in system vendor product odm system_ext; do
+            if [ -f "${part}.img" ] && [ -s "${part}.img" ]; then
+              SZ=$(stat -c%s "${part}.img")
+              TOTAL_PARTS_BYTES=$((TOTAL_PARTS_BYTES + SZ))
+            fi
+          done
+
           BLOCK_SIZE=4096
-          SUPER_SIZE=$(( ((RAW_SIZE + BLOCK_SIZE - 1) / BLOCK_SIZE) * BLOCK_SIZE ))
-          echo "Aligned SUPER_SIZE: $SUPER_SIZE (mod 4096 = $((SUPER_SIZE % BLOCK_SIZE)))"
+          TARGET_RAW=$((TOTAL_PARTS_BYTES + 16777216))
+          SUPER_SIZE=$(( ((TARGET_RAW + BLOCK_SIZE - 1) / BLOCK_SIZE) * BLOCK_SIZE ))
+          echo "Parts total: $TOTAL_PARTS_BYTES | SUPER_SIZE: $SUPER_SIZE"
 
           PART_ARGS=()
           for part in system vendor product odm system_ext; do
@@ -262,9 +257,7 @@ jobs:
           lpmake \
             --metadata-size 65536 \
             --metadata-slots 2 \
-            --block-size "$BLOCK_SIZE" \
             --device-size "$SUPER_SIZE" \
-            --device "super:$SUPER_SIZE" \
             --group "main:$SUPER_SIZE" \
             "${PART_ARGS[@]}" \
             --sparse \
