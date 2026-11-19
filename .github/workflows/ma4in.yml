@@ -91,7 +91,6 @@ jobs:
             --retry-wait=3 \
             --timeout=30 \
             --connect-timeout=15 \
-            --console-log-interval=30 \
             --summary-interval=30 \
             --user-agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36" \
             "$ROM_URL" \
