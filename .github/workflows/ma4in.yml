@@ -1,4 +1,4 @@
-name: Build HyperOS Port ROM for Galaxy A04 (AOSP 15 Partition Tools)
+name: Build HyperOS Port ROM for Galaxy A04 (libc++ Fix)
 
 on:
   workflow_dispatch:
@@ -40,7 +40,8 @@ jobs:
           sudo apt-get install -y -qq \
             git wget curl python3 \
             cpio aria2 zip unzip lz4 zstd e2fsprogs \
-            android-sdk-libsparse-utils erofs-utils file
+            android-sdk-libsparse-utils erofs-utils file \
+            libc++1 libc++abi1
 
           # تثبيت لغة Rust و samloader-rs لتحميل روم سامسونج
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y -q
@@ -60,7 +61,20 @@ jobs:
 
           chmod +x ~/bin/*
           echo "$HOME/bin" >> $GITHUB_PATH
-          file ~/bin/lpmake ~/bin/lpunpack || true
+
+          # ربط libc++.so إذا كانت موجودة في مسارات نظام أو مكتبات llvm
+          LIBCPP_PATH=$(find /usr/lib /lib -name "libc++.so*" 2>/dev/null | head -n 1 || true)
+          if [ -n "$LIBCPP_PATH" ]; then
+            LIBCPP_DIR=$(dirname "$LIBCPP_PATH")
+            echo "$LIBCPP_DIR" >> $GITHUB_PATH
+            echo "LD_LIBRARY_PATH=${LIBCPP_DIR}:${LD_LIBRARY_PATH:-}" >> $GITHUB_ENV
+            LIBCPP_SONAME=$(readelf -d ~/bin/simg2img 2>/dev/null | awk -F'[][]' '/NEEDED.*libc\+\+\.so/{print $2}' | head -n 1 || true)
+            if [ -n "$LIBCPP_SONAME" ] && [ ! -e "${LIBCPP_DIR}/${LIBCPP_SONAME}" ]; then
+              sudo ln -sf "$LIBCPP_PATH" "${LIBCPP_DIR}/${LIBCPP_SONAME}" || true
+            fi
+          fi
+
+          ldd ~/bin/simg2img ~/bin/lpmake ~/bin/lpunpack || true
 
       - name: Download Base ROM (Samsung)
         run: |
