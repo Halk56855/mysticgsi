@@ -14,9 +14,9 @@ on:
         default: 'XSG'
         type: string
       port_rom_url:
-        description: 'رابط التحميل المباشر لروم شاومي HyperOS'
+        description: 'رابط التحميل لروم شاومي HyperOS'
         required: true
-        default: 'https://bigota.d.miui.com/OS3.0.307.0.WGTMIXM/lake_global_images_OS3.0.307.0.WGTMIXM_20260921.0000.00_16.0_global_1f77e5d8d7.tgz'
+        default: 'https://xm05.space/MyUrLiwlJzsOOD0BMz8GIywRNEEOFTAINBUpIzE/KzUOPDJBGyEELhsQMDUxIS0eGz8dLzE/Hx4OFQRBDjwfDDQ8Kw8bFQQeNBIuAA4KBCYzPC0wMQofHg4KHwwxED0kQh4nLycSIh4nFiwvJxIXPCswKx8QMjUfDhEANTMRMhwbEQAMOQoEJjwRLSM5FTQtLDA9JEIeJy8nEiIeJxYsLycSFzwrMCsfEDI1HzweB0EnAjlBBQMHAA4CHUEnFh0vJxYaHCcDOS8nBD0gMSE9ATkVABwnFTk/HxFCMBsWNSkfOBcuGz8IOhwWCT8FA0IAHwMnHicDCRM='
         type: string
 
 jobs:
@@ -74,14 +74,15 @@ jobs:
           echo "Downloading Samsung firmware using samloader-rs..."
           samloader download -m "$MODEL" -r "$CSC" -o base_rom.zip || samloader download --model "$MODEL" --region "$CSC" -o base_rom.zip
 
-      - name: Download Port ROM via Direct Link (Fast Aria2c)
+      - name: Download Port ROM via URL (Aria2c)
         run: |
           cd workspace
           ROM_URL="${{ github.event.inputs.port_rom_url }}"
 
-          echo "Downloading Port ROM using optimized aria2c..."
+          echo "Downloading Port ROM using aria2c..."
           aria2c \
             --continue=true \
+            --follow-metalink=mem \
             --max-connection-per-server=16 \
             --split=16 \
             --min-split-size=10M \
@@ -97,7 +98,14 @@ jobs:
             -o port_rom_archive
 
           ls -lh port_rom_archive
-          file port_rom_archive
+          FILE_TYPE=$(file -b port_rom_archive)
+          echo "Detected file type: $FILE_TYPE"
+
+          if ! echo "$FILE_TYPE" | grep -qiE "gzip|zip|tar|archive"; then
+            echo "Error: Downloaded content is not a valid archive (likely an HTML/redirect page)."
+            head -n 20 port_rom_archive
+            exit 1
+          fi
 
       - name: Extract, Convert and Unpack super.img for Both Base and Port ROMs
         run: |
